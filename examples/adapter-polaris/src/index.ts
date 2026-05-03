@@ -1,17 +1,58 @@
 import { defineAdapter } from "@driftpatch/adapter-sdk";
+import type { ChangeEvent } from "@driftpatch/core";
+import { diffSurfaces } from "./differ.js";
+import { extractApiSurface } from "./extractor.js";
+import { fetchBundle } from "./fetcher.js";
+import type { ApiSurface, BundleRef } from "./types.js";
+
+interface PolarisRawChangelog {
+  text: string;
+  metadata: {
+    fromBundle: BundleRef;
+    toBundle: BundleRef;
+  };
+}
 
 export const polarisAdapter = defineAdapter({
   name: "polaris",
-  versionRange: ">=12.0.0 <14.0.0",
+  versionRange: "*",
   conventions: {
     entityPrefix: "s-",
     namingStyle: "kebab",
-    notes: "Shopify Polaris web components are kebab-case with `s-` prefix; React wrappers are PascalCase.",
+    notes:
+      "Shopify Polaris web components are kebab-case with `s-` prefix; React wrappers are PascalCase. " +
+      "There is no semver — versions are CDN bundle SHAs from /*!<sha>*/ at the top of polaris.js.",
   },
-  parseChangelog({ text: _text }) {
-    return [];
+
+  async fetchChangelog(from, to) {
+    const fromBundle = await fetchBundle(from);
+    const toBundle = await fetchBundle(to);
+    return {
+      text: "",
+      metadata: { fromBundle, toBundle },
+    };
   },
-  getEntityDefinition(_name, _version) {
-    return null;
+
+  parseChangelog(raw): ChangeEvent[] {
+    const polaris = raw as unknown as PolarisRawChangelog;
+    const fromSurface = extractApiSurface(
+      polaris.metadata.fromBundle.text,
+      polaris.metadata.fromBundle.sha,
+      polaris.metadata.fromBundle.source,
+    );
+    const toSurface = extractApiSurface(
+      polaris.metadata.toBundle.text,
+      polaris.metadata.toBundle.sha,
+      polaris.metadata.toBundle.source,
+    );
+    return diffSurfaces(fromSurface, toSurface, {
+      fromVersion: fromSurface.buildSha,
+      toVersion: toSurface.buildSha,
+    });
   },
 });
+
+export { fetchBundle } from "./fetcher.js";
+export { extractApiSurface } from "./extractor.js";
+export { diffSurfaces } from "./differ.js";
+export type { ApiSurface, ElementSurface, BundleRef } from "./types.js";

@@ -75,7 +75,7 @@ export function buildProgram(): Command {
     .option("--validate", "apply patch + run skill validation commands; revert after", false)
     .option("--repair", "if validation fails, ask LLM for one repair attempt and re-validate", false)
     .option("--allow-dirty", "skip clean-tree check before validating (use with care)", false)
-    .option("--pr", "open a PR after applying", false)
+    .option("--pr", "after validation passes, branch + commit + push + gh pr create", false)
     .action(async (opts) => {
       await runRun({
         source: opts.source,
@@ -99,21 +99,37 @@ export function buildProgram(): Command {
   adapter
     .command("init")
     .requiredOption("--provider <name>", "provider name")
+    .option("--path <dir>", "parent directory for the new adapter dir", ".")
+    .option("--force", "overwrite existing directory", false)
     .action(async (opts) => {
-      await runAdapterInit({ provider: opts.provider });
+      await runAdapterInit({
+        provider: opts.provider,
+        outDir: opts.path,
+        force: Boolean(opts.force),
+      });
     });
   adapter
     .command("generate")
     .requiredOption("--provider <name>", "provider name")
     .requiredOption("--samples <dir>", "directory of sample changelogs")
+    .option("--path <dir>", "parent directory of the adapter", ".")
+    .option("--effort <level>", "LLM effort: low|medium|high|max", "medium")
+    .option("--model <id>", "Claude model id (e.g. claude-sonnet-4-6)")
     .action(async (opts) => {
-      await runAdapterGenerate({ provider: opts.provider, samples: opts.samples });
+      await runAdapterGenerate({
+        provider: opts.provider,
+        samples: opts.samples,
+        outDir: opts.path,
+        ...(opts.model ? { model: opts.model } : {}),
+        effort: opts.effort,
+      });
     });
   adapter
     .command("test")
     .requiredOption("--provider <name>", "provider name")
+    .option("--path <dir>", "parent directory of the adapter", ".")
     .action(async (opts) => {
-      await runAdapterTest({ provider: opts.provider });
+      await runAdapterTest({ provider: opts.provider, outDir: opts.path });
     });
 
   return program;

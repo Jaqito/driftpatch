@@ -79,4 +79,33 @@ describe("locate", () => {
     expect(cardHit?.reason).toMatch(/line \d+/);
     expect(cardHit?.reason).toMatch(/PolarisCard/);
   });
+
+  it("matches call-site entities (e.g. stripe.checkout.sessions.create)", async () => {
+    const index = await indexRepo(FIXTURE, { useCache: false });
+    const change = event({
+      provider: "stripe",
+      kind: "signature_change",
+      entity: "stripe.checkout.sessions.create",
+      attributes: { element: "stripe.checkout.sessions.create" },
+    });
+    const candidates = locate(change, index);
+    const llmHit = candidates.find((c) => c.filePath === "src/lib/llm.ts");
+    expect(llmHit).toBeDefined();
+    expect(llmHit?.reason).toMatch(/Call to stripe\.checkout\.sessions\.create/);
+  });
+
+  it("matches new-expression call sites with import source upgrade", async () => {
+    const index = await indexRepo(FIXTURE, { useCache: false });
+    const change = event({
+      provider: "stripe",
+      kind: "signature_change",
+      entity: "Stripe",
+      attributes: { element: "Stripe" },
+    });
+    const candidates = locate(change, index);
+    const llmHit = candidates.find((c) => c.filePath === "src/lib/llm.ts");
+    expect(llmHit).toBeDefined();
+    expect(llmHit?.reason).toMatch(/new expression/);
+    expect(llmHit?.confidence).toBe("high");
+  });
 });

@@ -57,6 +57,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.88.0
+        version: 0.88.0(zod@3.25.76)
       '@driftpatch-example/adapter-polaris':
         specifier: workspace:*
         version: link:../../examples/adapter-polaris

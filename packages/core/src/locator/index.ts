@@ -103,6 +103,20 @@ export function locate(
       confidence: "medium",
     });
   }
+
+  // Call-site hits (e.g. stripe.checkout.sessions.create, prisma.user.findMany).
+  // Match either the full callee chain or the entity prefix path.
+  for (const call of index.callSites) {
+    if (!callMatchesEntity(call.callee, elementHint)) continue;
+    const importPart = call.importSource ? ` (imported from ${call.importSource})` : "";
+    const newClause = call.isNew ? " (new expression)" : "";
+    addCandidate(accumulator, call.filePath, {
+      reason: `Call to ${call.callee}${newClause} on line ${call.line}${importPart}`,
+      symbol: call.callee,
+      confidence: call.importSource ? "high" : "medium",
+    });
+  }
+
   void conv;
 
   return [...accumulator]
@@ -133,6 +147,15 @@ function addCandidate(
 function upgradeConfidence(a: Confidence, b: Confidence): Confidence {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   return rank[a] >= rank[b] ? a : b;
+}
+
+function callMatchesEntity(callee: string, entity: string): boolean {
+  if (callee === entity) return true;
+  // entity might be a prefix of the callee chain (e.g. entity="stripe.checkout.sessions.create"
+  // matches callee "stripe.checkout.sessions.create" but not "stripe.charges.create").
+  // Also support entity referring to a method within a chain.
+  if (callee.endsWith(`.${entity}`)) return true;
+  return false;
 }
 
 function collectSkillMappedFiles(

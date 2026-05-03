@@ -58,6 +58,18 @@ export {
   isCleanWorkingTree,
   summarizeValidationFailures,
 } from "./validator/index.js";
+export {
+  describeRepo,
+  createBranch,
+  commitAll,
+  pushBranch,
+  createPr,
+  git as runGit,
+  tryGit,
+} from "./git/index.js";
+export type { GitInfo } from "./git/index.js";
+export { generatePrContent } from "./pr/template.js";
+export type { PrContent, PrTemplateInput } from "./pr/template.js";
 export type {
   ApplyAndValidateInput,
   ApplyAndValidateResult,

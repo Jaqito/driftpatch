@@ -4,17 +4,25 @@ import { genericAdapter } from "@driftpatch/adapter-generic";
 import type { ProviderAdapter, RawChangelog } from "@driftpatch/adapter-sdk";
 import {
   applyAndValidate,
+  applyPatch,
   assemblePatch,
+  commitAll,
+  createBranch,
+  createPr,
+  describeRepo,
+  generatePrContent,
   indexRepo,
   loadSkill,
   locate,
   proposePatch,
+  pushBranch,
   repairProposedPatch,
   type ChangeEvent,
   type FilePatchPlan,
   type ImpactCandidate,
   type ProviderConventionsHint,
   type RepoSkill,
+  type ValidationStepResult,
 } from "@driftpatch/core";
 import { polarisAdapter } from "@driftpatch-example/adapter-polaris";
 
@@ -158,12 +166,16 @@ export async function runRun(opts: RunOptions): Promise<void> {
     }
   }
 
+  let finalPatchText = result.patch.unifiedDiff;
+  let finalPlans: FilePatchPlan[] = result.plans;
+  let validation: ValidationStepResult[] | undefined;
+
   if (opts.validate || opts.repair) {
     if (!skill) {
       console.error("\n[run] --validate requires a skill (driftpatch.skill.md) with validation commands");
       process.exit(2);
     }
-    await runValidationLoop({
+    const loopResult = await runValidationLoop({
       repoPath: path.resolve(opts.repo),
       patchText: result.patch.unifiedDiff,
       plans: result.plans,
@@ -174,9 +186,107 @@ export async function runRun(opts: RunOptions): Promise<void> {
       patchModel,
       effort: opts.effort,
     });
+    if (loopResult) {
+      finalPatchText = loopResult.finalPatchText;
+      finalPlans = loopResult.finalPlans;
+      validation = loopResult.validation;
+      if (!loopResult.passed) {
+        if (opts.pr) {
+          console.error("\n[run] --pr aborted: validation did not pass.");
+        }
+        return;
+      }
+    }
   }
 
-  if (opts.pr) console.log("\n[run] --pr requested but apply/PR pipeline not implemented yet");
+  if (opts.pr) {
+    if (!skill) {
+      console.error("\n[run] --pr requires a skill so we can include validation status; run with --validate or pass --skill explicitly.");
+      process.exit(2);
+    }
+    await runPrFlow({
+      repoPath: path.resolve(opts.repo),
+      patchText: finalPatchText,
+      plans: finalPlans,
+      events,
+      provider: opts.provider,
+      fromVersion: opts.from ?? "source",
+      toVersion: opts.to ?? "current",
+      validation,
+      draft: false,
+    });
+  }
+}
+
+interface PrFlowInput {
+  repoPath: string;
+  patchText: string;
+  plans: FilePatchPlan[];
+  events: ChangeEvent[];
+  provider: string;
+  fromVersion: string;
+  toVersion: string;
+  validation?: ValidationStepResult[];
+  draft: boolean;
+}
+
+async function runPrFlow(input: PrFlowInput): Promise<void> {
+  console.log("\n[pr] preparing PR ...");
+
+  const info = await describeRepo(input.repoPath);
+  if (!info.remoteUrl) {
+    console.error("[pr] no git remote 'origin' configured; cannot push or open PR.");
+    return;
+  }
+  if (!info.hasGhCli) {
+    console.error("[pr] gh CLI not found in PATH; install from https://cli.github.com/ to open PRs.");
+    return;
+  }
+
+  const pr = generatePrContent({
+    provider: input.provider,
+    fromVersion: input.fromVersion,
+    toVersion: input.toVersion,
+    events: input.events,
+    plans: input.plans,
+    ...(input.validation ? { validation: input.validation } : {}),
+  });
+
+  console.log(`[pr] target branch: ${pr.branchName}`);
+  console.log(`[pr] base branch: ${info.defaultBranch} (current: ${info.currentBranch})`);
+
+  await createBranch(pr.branchName, input.repoPath);
+  console.log(`[pr] checked out ${pr.branchName}`);
+
+  const apply = await applyPatch(input.repoPath, input.patchText);
+  if (!apply.applied) {
+    console.error(`[pr] failed to apply patch on the new branch: ${apply.message}`);
+    return;
+  }
+  console.log("[pr] patch applied");
+
+  const sha = await commitAll(pr.commitMessage, input.repoPath);
+  console.log(`[pr] committed (${sha.slice(0, 8)})`);
+
+  try {
+    await pushBranch(pr.branchName, input.repoPath);
+    console.log(`[pr] pushed ${pr.branchName} to origin`);
+  } catch (err) {
+    console.error(`[pr] push failed: ${err instanceof Error ? err.message : err}`);
+    return;
+  }
+
+  try {
+    const url = await createPr(input.repoPath, {
+      title: pr.title,
+      body: pr.body,
+      base: info.defaultBranch,
+      draft: input.draft,
+    });
+    console.log(`[pr] opened: ${url}`);
+  } catch (err) {
+    console.error(`[pr] gh pr create failed: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 interface ValidationLoopInput {
@@ -191,7 +301,16 @@ interface ValidationLoopInput {
   effort?: "low" | "medium" | "high" | "max";
 }
 
-async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
+interface ValidationLoopResult {
+  passed: boolean;
+  finalPatchText: string;
+  finalPlans: FilePatchPlan[];
+  validation: ValidationStepResult[];
+}
+
+async function runValidationLoop(
+  input: ValidationLoopInput,
+): Promise<ValidationLoopResult | null> {
   console.log(
     `\n[run] validating patch (commands: ${input.skill.validation.commands.join(", ")}) ...`,
   );
@@ -207,17 +326,32 @@ async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
 
   if (first.passed) {
     console.log("[run] validation passed.");
-    return;
+    return {
+      passed: true,
+      finalPatchText: input.patchText,
+      finalPlans: input.plans,
+      validation: first.validation,
+    };
   }
 
   if (!input.allowRepair) {
     console.log("[run] --repair not set; not attempting LLM repair. Patch left as-is, working tree reverted.");
-    return;
+    return {
+      passed: false,
+      finalPatchText: input.patchText,
+      finalPlans: input.plans,
+      validation: first.validation,
+    };
   }
 
   if (!first.applyResult.applied) {
     console.log("[run] patch did not even apply; nothing for repair to fix.");
-    return;
+    return {
+      passed: false,
+      finalPatchText: input.patchText,
+      finalPlans: input.plans,
+      validation: first.validation,
+    };
   }
 
   console.log("\n[run] requesting repair from LLM ...");
@@ -260,8 +394,20 @@ async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
     console.log(
       "[run] repair validation passed. proposed.patch is the original; repaired.patch is the corrected one.",
     );
+    return {
+      passed: true,
+      finalPatchText: repaired.unifiedDiff,
+      finalPlans: mergedPlans,
+      validation: second.validation,
+    };
   } else {
     console.log("[run] repair attempt also failed. Reverting and reporting.");
+    return {
+      passed: false,
+      finalPatchText: repaired.unifiedDiff,
+      finalPlans: mergedPlans,
+      validation: second.validation,
+    };
   }
 }
 

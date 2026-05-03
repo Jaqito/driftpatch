@@ -16,6 +16,7 @@
     "dev": "tsup --watch"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
     "@driftpatch-example/adapter-polaris": "workspace:*",
     "@driftpatch/adapter-generic": "workspace:*",
     "@driftpatch/adapter-sdk": "workspace:*",

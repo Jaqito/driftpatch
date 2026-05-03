@@ -322,7 +322,100 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 
 ---
 
-## 13. Outputs
+## 13. Generalization across providers
+
+Architectural pressure-test: anything that touches "understand the user's repo" — locator, init, planner — must generalize. We pressure-tested the design against five canonical cases that cover the practical diversity of integrations DriftPatch is meant to support.
+
+### 13.1 Five canonical cases
+
+| # | Case | Source-of-truth artifact | What's in user code | Distinct trait |
+|---|---|---|---|---|
+| 1 | **Polaris** (React + web components) | Minified CDN bundle | JSX renders, prop literals | UI-shaped |
+| 2 | **Stripe** (server SDK + webhooks) | OpenAPI spec + types | Function calls, **string literals** for event names | Event-name strings |
+| 3 | **Anthropic / OpenAI SDK** | Model lifecycle docs + types | Function calls, **string literals** for model names, tool schemas | Model retirement is the dominant change |
+| 4 | **Prisma** (DB schema + client) | `schema.prisma` + generated types | Function calls (`prisma.user.findMany`), **non-TS schema file** | Multi-language source |
+| 5 | **Auth0 / Clerk** (middleware + hooks) | SDK types + callback URL config | JSX, function calls, middleware composition, **string literals** for callback paths | Config + middleware spread across files |
+
+### 13.2 Required match types per case
+
+| | JSX | Function calls | String literals | Object property values | Non-TS files |
+|---|---|---|---|---|---|
+| Polaris | ✓✓ | – | – | (prop literals via JSX) | – |
+| Stripe | – | ✓✓ | ✓✓ event names | ✓ in handler bodies | – |
+| Anthropic | – | ✓✓ | ✓✓ model strings | ✓✓ `{ model: "..." }` | – |
+| Prisma | – | ✓✓ | – | – | ✓✓ `schema.prisma` |
+| Auth0 | ✓ | ✓✓ | ✓ callback paths | – | (config files) |
+
+The current `RepoIndex` already supports JSX, string literals (with context), and object property values via the string literal extractor's `object_value` context. Two additions are needed:
+
+- **Function-call extraction** — required by 4 of 5 cases. Goes in `@driftpatch/core` indexer (~50 LOC ts-morph addition).
+- **Non-TS source files** — provider-specific. The adapter ships its own indexer for its own file types (Prisma adapter parses `schema.prisma`, GraphQL adapter parses `.graphql`). Results merge into the provider's snapshot. Stays out of core.
+
+### 13.3 The shared shape: `RepoSummary`
+
+All five cases collapse to a single summary shape consumed by `init`'s LLM prompt and (in future iterations) the locator's planner:
+
+```ts
+interface RepoSummary {
+  // Deterministic facts
+  name: string;
+  language: "typescript" | "javascript" | "mixed";
+  packageManager: "pnpm" | "npm" | "yarn" | "bun";
+  scripts: Record<string, string>;
+  validationCandidates: string[];
+  topDirs: DirSummary[];
+
+  providersDetected: ProviderSnapshot[];
+  areaCandidates: AreaSnapshot[];
+}
+
+interface ProviderSnapshot {
+  name: string;
+  packages: string[];
+  filesUsing: string[];
+  affinity: {
+    jsx?:            { components: string[]; sampleFiles: string[] };
+    callSites?:      { method: string; sampleFiles: string[] }[];
+    literals?:       { value: string; context: string; sampleFiles: string[] }[];
+    propertyValues?: { keyPath: string; values: string[]; sampleFiles: string[] }[];
+  };
+  wrapperCandidates?: WrapperCandidate[];
+}
+
+interface WrapperCandidate {
+  upstreamEntity: string;   // "s-button" | "messages.create" | "User" | "/api/auth/callback"
+  candidates: Array<{ file: string; exports: string[]; score: number }>;
+}
+```
+
+`affinity` is the discriminator that covers all five consumption patterns. `wrapperCandidates` generalizes "what's the local file representing this upstream thing?" — which is a React wrapper for Polaris, a webhook handler for Stripe, a queries module for Prisma, a middleware file for Auth0, etc.
+
+### 13.4 Per-provider responsibility: `summarize`
+
+Each `ProviderAdapter` implements:
+
+```ts
+summarize(index: RepoIndex): ProviderSnapshot
+```
+
+The adapter knows its own conventions — what literal patterns matter, where to look for wrapper candidates, what counts as "this file consumes the provider in a meaningful way." This keeps provider-specific logic out of core; the locator and init both consume the unified `ProviderSnapshot` regardless of provider.
+
+The generic adapter falls back to "files importing the package" only — a baseline that works on day 1 of any engagement.
+
+### 13.5 Why this matters for the architecture
+
+Without this generalization analysis, init was at risk of being a Polaris-shaped command with hardcoded JSX-wrapper logic. The five-case pressure test forced the design to:
+
+1. Add function-call extraction to core (4 of 5 cases need it)
+2. Define `affinity` as a discriminator instead of a single match type
+3. Push provider-specific logic into adapter `summarize`, not core
+4. Defer multi-language indexing to per-provider responsibility instead of attempting it generically
+
+This keeps the engine genuinely generic and makes adding the 6th, 7th, Nth provider an FDE-day task rather than a refactor.
+
+---
+
+## 14. Outputs
 
 ```
 .driftpatch/
@@ -338,7 +431,7 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 
 ---
 
-## 14. Risks
+## 15. Risks
 
 | Risk | Mitigation |
 |---|---|
@@ -355,7 +448,7 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 
 ---
 
-## 15. Success Criteria
+## 16. Success Criteria
 
 1. **End-to-end demo on Polaris fixture**: changelog → impact report → validated patch → PR, with mechanical changes auto-applied and behavior changes flagged.
 2. **FDE adapter authoring**: a new adapter (e.g. Stripe) goes from `adapter init` to passing fixtures in under a working day.
@@ -365,7 +458,7 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 
 ---
 
-## 16. Open Questions
+## 17. Open Questions
 
 - **Skill format vs Claude Code skills**: should `driftpatch.skill.md` piggyback on Claude Code's skill system, or remain DriftPatch-specific? Piggybacking gives us discovery and tooling for free; staying separate keeps the engine portable across harnesses. Default position: separate, but document the structural similarity.
 - **Adapter registry distribution**: private npm scope vs internal monorepo. Lean toward npm scope for versioning ergonomics.
@@ -374,11 +467,13 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 
 ---
 
-## 17. Implementation Layers (build order)
+## 18. Implementation Layers (build order)
 
-1. **Engine + generic adapter + minimal skill loader** — get end-to-end working on a markdown changelog with no real adapter.
-2. **Polaris adapter + fixtures** — first real adapter, becomes the eval anchor.
-3. **`init` command** — interactive skill generation, validation command verification.
+1. **Engine scaffold + generic adapter** — markdown changelog → ChangeEvents end-to-end.
+1.5. **RepoIndex** — `ts-morph` based; imports, JSX, string literals, symbols, package map.
+1.75. **Locator** — `ChangeEvent + RepoIndex` → `ImpactCandidate[]` with reasons.
+2. **Polaris adapter** — bundle differ; first real provider; eval anchor.
+3. **`init` command** — `RepoSummary` extraction (deterministic) + LLM skill draft + validation verification + interactive confirm. **Generalization-tested against 5 canonical providers** (see §13). Required prerequisite: function-call extraction in indexer + `summarize` method on `ProviderAdapter`.
 4. **`adapter init` + `adapter generate`** — FDE workflow.
 5. **Eval harness** — grader, fixture cases, regression gating.
 6. **Validation repair loop** — single repair attempt with error context.

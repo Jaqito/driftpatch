@@ -99,12 +99,51 @@ So the Polaris adapter is a **bundle differ**, not a markdown parser.
 
 **Risk eliminated:** no runtime dependency on third parties. Dev archive is a one-time fixture-seeding convenience.
 
-### Layer 3 — `driftpatch init`
-- [ ] Repo scanner: detect language, package manager, candidate areas
-- [ ] LLM proposes draft skill from scan
-- [ ] Interactive confirm/edit loop
-- [ ] Verify proposed validation commands actually run before saving
-- [ ] Write `driftpatch.skill.md` + add `.driftpatch/` to `.gitignore`
+### Layer 3 — `driftpatch init` (skill generation)
+
+**Design constraint:** `init` must generalize beyond Polaris. We pressure-tested the design against 5 canonical cases (see PRD §13: Generalization across providers) — Polaris (React + web components), Stripe (server SDK + webhooks), Anthropic/OpenAI SDK, Prisma (DB schema + types), Auth0 (middleware + hooks). All five collapse to the same `RepoSummary` shape if we add function-call extraction to the index.
+
+**Approach:** deterministic extraction does the bulk of the work; the LLM only fills in human-judgment gaps (area descriptions, picking the canonical wrapper file when multiple candidates exist, suggesting exclusions, one-line repo description). Per-provider affinity logic (e.g. "for Stripe, look for `payment_intent.*` literals") lives in the **adapter's `summarize(index)` method**, not in core.
+
+#### 3a — Index gaps to close first (3 of 5 cases need them)
+
+- [ ] **Function-call extraction in `@driftpatch/core` indexer**: capture `CallExpression`s on identifiers we care about (e.g. `stripe.checkout.sessions.create`, `prisma.user.findMany`, `messages.create`). Records callee chain + sample args + import source. ~50 LOC ts-morph addition.
+- [ ] **Object-property-value extraction**: partially covered by string literal extractor's `object_value` context. Confirm sufficient for `{ model: "claude-..." }` Anthropic case before extending.
+- [ ] **Multi-language source files** (Prisma `schema.prisma`, GraphQL `.graphql`, etc) stay out of core. **Per-provider responsibility** — adapter brings its own non-TS indexer when needed; results merge into the provider's `ProviderSnapshot`.
+
+#### 3b — Summary types in core
+
+- [ ] `RepoSummary`, `ProviderSnapshot`, `WrapperCandidate`, `AreaSnapshot` types (see PRD §13 for shape)
+- [ ] `affinity` discriminator: `jsx | callSites | literals | propertyValues` — covers all 5 canonical consumption patterns
+
+#### 3c — Per-provider summarize hook
+
+- [ ] Add `summarize(index): ProviderSnapshot` to `ProviderAdapter` interface in `@driftpatch/adapter-sdk` (optional; default returns minimal snapshot from imports alone)
+- [ ] Polaris adapter implements it: JSX usage + wrapper-candidate scoring (pull this out of the locator code we already wrote)
+- [ ] Generic adapter falls back to "files importing the package" only
+
+#### 3d — Generic extractor
+
+- [ ] `extractRepoSummary(index, repoPath, adapters): RepoSummary` in core. Combines deterministic facts (`package.json`, scripts, lockfile detection, top-dir tree) with each adapter's `summarize` output.
+- [ ] Includes deterministic validation-command candidates (scan `scripts` for `typecheck|lint|test|check|verify`)
+
+#### 3e — `driftpatch init --dry-run` first
+
+- [ ] CLI command that runs only the deterministic extraction and prints `RepoSummary` JSON
+- [ ] Iterate on the shape against `shopify-components` + at least one non-Polaris case (Stripe sample repo or similar) before adding LLM call
+
+#### 3f — LLM call + skill draft
+
+- [ ] Single structured LLM call: `RepoSummary` + skill schema → draft skill
+- [ ] LLM only fills: area pattern descriptions, canonical wrapper picks, suggested exclusions, one-line repo description
+- [ ] Deterministic fields (name, language, package manager, scripts) merged in from extraction — LLM never overrides them
+
+#### 3g — Validation + interactive confirm + save
+
+- [ ] **Verify validation commands run successfully** in the repo before saving them; drop failures, warn user
+- [ ] Interactive confirm/edit loop (display draft, allow edits)
+- [ ] Markdown serializer: `RepoSkill` JSON ↔ `driftpatch.skill.md`
+- [ ] Add `.driftpatch/` to `.gitignore`
 
 ### Layer 4 — `adapter init` + `adapter generate`
 - [ ] `adapter init`: scaffold directory (`index.ts`, `parser.ts`, `entities.ts`, `fixtures/`, `fixtures.test.ts`, `README.md`)

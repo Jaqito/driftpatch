@@ -149,6 +149,8 @@ function describeError(err: unknown): string {
 
 export { planFilePatch } from "./plan.js";
 export { assemblePatch } from "./assemble.js";
+export { repairProposedPatch, RepairResponseSchema } from "./repair.js";
 export { FilePatchPlanSchema, ReplacementBlockSchema } from "./types.js";
 export type { FilePatchPlan, ReplacementBlock } from "./types.js";
 export type { AssembledPatch, AssembledFilePatch } from "./assemble.js";
+export type { RepairProposedPatchInput, RepairOptions, RepairResponse, RepairResult } from "./repair.js";

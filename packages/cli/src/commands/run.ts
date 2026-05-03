@@ -3,10 +3,13 @@ import path from "node:path";
 import { genericAdapter } from "@driftpatch/adapter-generic";
 import type { ProviderAdapter, RawChangelog } from "@driftpatch/adapter-sdk";
 import {
+  applyAndValidate,
+  assemblePatch,
   indexRepo,
   loadSkill,
   locate,
   proposePatch,
+  repairProposedPatch,
   type ChangeEvent,
   type FilePatchPlan,
   type ImpactCandidate,
@@ -24,6 +27,8 @@ export interface RunOptions {
   skill?: string;
   pr: boolean;
   patch: boolean;
+  validate: boolean;
+  repair: boolean;
   effort?: "low" | "medium" | "high" | "max";
   model?: string;
   minConfidence: "low" | "medium" | "high";
@@ -152,7 +157,130 @@ export async function runRun(opts: RunOptions): Promise<void> {
     }
   }
 
+  if (opts.validate || opts.repair) {
+    if (!skill) {
+      console.error("\n[run] --validate requires a skill (driftpatch.skill.md) with validation commands");
+      process.exit(2);
+    }
+    await runValidationLoop({
+      repoPath: path.resolve(opts.repo),
+      patchText: result.patch.unifiedDiff,
+      plans: result.plans,
+      events,
+      skill,
+      allowRepair: opts.repair,
+      patchModel,
+      effort: opts.effort,
+    });
+  }
+
   if (opts.pr) console.log("\n[run] --pr requested but apply/PR pipeline not implemented yet");
+}
+
+interface ValidationLoopInput {
+  repoPath: string;
+  patchText: string;
+  plans: FilePatchPlan[];
+  events: ChangeEvent[];
+  skill: RepoSkill;
+  allowRepair: boolean;
+  patchModel: string;
+  effort?: "low" | "medium" | "high" | "max";
+}
+
+async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
+  console.log(
+    `\n[run] validating patch (commands: ${input.skill.validation.commands.join(", ")}) ...`,
+  );
+
+  const first = await applyAndValidate({
+    repoPath: input.repoPath,
+    patchText: input.patchText,
+    validationCommands: input.skill.validation.commands,
+  });
+
+  printValidationOutcome("first attempt", first);
+
+  if (first.passed) {
+    console.log("[run] validation passed.");
+    return;
+  }
+
+  if (!input.allowRepair) {
+    console.log("[run] --repair not set; not attempting LLM repair. Patch left as-is, working tree reverted.");
+    return;
+  }
+
+  if (!first.applyResult.applied) {
+    console.log("[run] patch did not even apply; nothing for repair to fix.");
+    return;
+  }
+
+  console.log("\n[run] requesting repair from LLM ...");
+  const repair = await repairProposedPatch(
+    {
+      repoPath: input.repoPath,
+      events: input.events,
+      previousPlans: input.plans,
+      validationOutput: first.failureSummary,
+      skill: input.skill,
+    },
+    {
+      model: input.patchModel,
+      ...(input.effort ? { effort: input.effort } : {}),
+    },
+  );
+  console.log(
+    `[run] repair returned ${repair.response.files.length} corrected file plan(s) (in=${repair.usage.inputTokens}, out=${repair.usage.outputTokens})`,
+  );
+  console.log(`  notes: ${repair.response.notes}`);
+
+  const mergedPlans = mergePlans(input.plans, repair.response.files);
+  const repaired = await assemblePatch(mergedPlans, { repoPath: input.repoPath });
+
+  const fs = await import("node:fs/promises");
+  const repairedPath = path.join(input.repoPath, ".driftpatch", "repaired.patch");
+  await fs.writeFile(repairedPath, repaired.unifiedDiff);
+  console.log(`[run] wrote ${repairedPath}`);
+
+  const second = await applyAndValidate({
+    repoPath: input.repoPath,
+    patchText: repaired.unifiedDiff,
+    validationCommands: input.skill.validation.commands,
+  });
+
+  printValidationOutcome("repair attempt", second);
+
+  if (second.passed) {
+    console.log(
+      "[run] repair validation passed. proposed.patch is the original; repaired.patch is the corrected one.",
+    );
+  } else {
+    console.log("[run] repair attempt also failed. Reverting and reporting.");
+  }
+}
+
+function mergePlans(previous: FilePatchPlan[], updates: FilePatchPlan[]): FilePatchPlan[] {
+  const updatesByPath = new Map(updates.map((p) => [p.filePath, p]));
+  return previous.map((p) => updatesByPath.get(p.filePath) ?? p);
+}
+
+function printValidationOutcome(
+  label: string,
+  result: { passed: boolean; failureSummary: string; validation: { command: string; passed: boolean; durationMs: number; exitCode: number | null }[] },
+): void {
+  console.log(`\n[validate ${label}] ${result.passed ? "PASSED" : "FAILED"}`);
+  for (const step of result.validation) {
+    const symbol = step.passed ? "✓" : "✗";
+    console.log(`  ${symbol} ${step.command} (${step.durationMs}ms, exit ${step.exitCode})`);
+  }
+  if (!result.passed && result.failureSummary) {
+    const lines = result.failureSummary.split("\n");
+    const trimmed = lines.length > 30 ? [...lines.slice(0, 30), `[+${lines.length - 30} more lines]`] : lines;
+    console.log("\n--- failure summary ---");
+    console.log(trimmed.join("\n"));
+    console.log("--- end ---");
+  }
 }
 
 async function writeArtifacts(

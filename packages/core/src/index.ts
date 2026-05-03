@@ -32,8 +32,10 @@ export {
   proposePatch,
   planFilePatch,
   assemblePatch,
+  repairProposedPatch,
   FilePatchPlanSchema,
   ReplacementBlockSchema,
+  RepairResponseSchema,
 } from "./patcher/index.js";
 export type {
   AssembledFilePatch,
@@ -43,4 +45,23 @@ export type {
   ProposePatchProgress,
   ProposePatchResult,
   ReplacementBlock,
+  RepairProposedPatchInput,
+  RepairOptions,
+  RepairResponse,
+  RepairResult,
 } from "./patcher/index.js";
+export {
+  applyAndValidate,
+  runValidation,
+  applyPatch,
+  revertWorkingTree,
+  isCleanWorkingTree,
+  summarizeValidationFailures,
+} from "./validator/index.js";
+export type {
+  ApplyAndValidateInput,
+  ApplyAndValidateResult,
+  ApplyResult as PatchApplyResult,
+  RunValidationOptions,
+  ValidationStepResult,
+} from "./validator/index.js";

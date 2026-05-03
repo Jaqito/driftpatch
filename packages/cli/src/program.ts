@@ -72,6 +72,8 @@ export function buildProgram(): Command {
       "patch only impacts at this confidence or higher (low|medium|high)",
       "high",
     )
+    .option("--validate", "apply patch + run skill validation commands; revert after", false)
+    .option("--repair", "if validation fails, ask LLM for one repair attempt and re-validate", false)
     .option("--pr", "open a PR after applying", false)
     .action(async (opts) => {
       await runRun({
@@ -85,6 +87,8 @@ export function buildProgram(): Command {
         effort: opts.effort,
         model: opts.model,
         minConfidence: opts.minConfidence,
+        validate: Boolean(opts.validate),
+        repair: Boolean(opts.repair),
         pr: Boolean(opts.pr),
       });
     });

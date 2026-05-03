@@ -12,10 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@driftpatch/adapter-sdk": "workspace:*"
+    "@driftpatch/adapter-sdk": "workspace:*",
+    "@driftpatch/core": "workspace:*"
   },
   "devDependencies": {
-    "@driftpatch/core": "workspace:*",
     "tsx": "^4.19.2",
     "vitest": "^2.1.5"
   }

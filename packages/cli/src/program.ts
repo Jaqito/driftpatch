@@ -13,10 +13,18 @@ export function buildProgram(): Command {
 
   program
     .command("init")
-    .description("Generate a draft repo skill interactively")
+    .description("Extract a RepoSummary; --dry-run prints the summary only")
     .option("--repo <path>", "repo path", ".")
+    .option("--dry-run", "extract and print summary only; do not call LLM or write skill", false)
+    .option("--out <path>", "write the summary JSON to this path")
+    .option("--pretty", "pretty-print the JSON output", false)
     .action(async (opts) => {
-      await runInit({ repo: opts.repo });
+      await runInit({
+        repo: opts.repo,
+        dryRun: Boolean(opts.dryRun),
+        out: opts.out,
+        pretty: Boolean(opts.pretty),
+      });
     });
 
   program

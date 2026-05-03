@@ -20,3 +20,5 @@ export type {
 } from "./summary/types.js";
 export { summarizeProviderDefault } from "./summary/default.js";
 export type { DefaultSummarizeOptions } from "./summary/default.js";
+export { extractRepoSummary } from "./summary/extract.js";
+export type { ExtractSummaryOptions, SummaryAdapter } from "./summary/extract.js";

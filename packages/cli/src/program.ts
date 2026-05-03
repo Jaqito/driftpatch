@@ -1,0 +1,59 @@
+import { Command } from "commander";
+import { runInit } from "./commands/init.js";
+import { runRun } from "./commands/run.js";
+import { runAdapterInit, runAdapterGenerate, runAdapterTest } from "./commands/adapter.js";
+
+export function buildProgram(): Command {
+  const program = new Command();
+  program
+    .name("driftpatch")
+    .description("Turn upstream changes into reviewable, validated patches.")
+    .version("0.0.0");
+
+  program
+    .command("init")
+    .description("Generate a draft repo skill interactively")
+    .option("--repo <path>", "repo path", ".")
+    .action(async (opts) => {
+      await runInit({ repo: opts.repo });
+    });
+
+  program
+    .command("run")
+    .description("Ingest a changelog, generate and validate a patch")
+    .requiredOption("--source <path>", "changelog file")
+    .option("--provider <name>", "provider adapter name", "generic")
+    .option("--skill <path>", "override skill file path")
+    .option("--pr", "open a PR after applying", false)
+    .action(async (opts) => {
+      await runRun({
+        source: opts.source,
+        provider: opts.provider,
+        skill: opts.skill,
+        pr: Boolean(opts.pr),
+      });
+    });
+
+  const adapter = program.command("adapter").description("Adapter authoring");
+  adapter
+    .command("init")
+    .requiredOption("--provider <name>", "provider name")
+    .action(async (opts) => {
+      await runAdapterInit({ provider: opts.provider });
+    });
+  adapter
+    .command("generate")
+    .requiredOption("--provider <name>", "provider name")
+    .requiredOption("--samples <dir>", "directory of sample changelogs")
+    .action(async (opts) => {
+      await runAdapterGenerate({ provider: opts.provider, samples: opts.samples });
+    });
+  adapter
+    .command("test")
+    .requiredOption("--provider <name>", "provider name")
+    .action(async (opts) => {
+      await runAdapterTest({ provider: opts.provider });
+    });
+
+  return program;
+}

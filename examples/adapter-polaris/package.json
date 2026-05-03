@@ -1,0 +1,20 @@
+{
+  "name": "@driftpatch-example/adapter-polaris",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "fixtures"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@driftpatch/adapter-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@driftpatch/core": "workspace:*"
+  }
+}

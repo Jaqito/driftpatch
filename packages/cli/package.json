@@ -1,0 +1,24 @@
+{
+  "name": "@driftpatch/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "driftpatch": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "@driftpatch/adapter-generic": "workspace:*",
+    "@driftpatch/adapter-sdk": "workspace:*",
+    "@driftpatch/core": "workspace:*",
+    "commander": "^12.1.0"
+  }
+}

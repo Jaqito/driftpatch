@@ -19,6 +19,7 @@
     "@driftpatch/adapter-generic": "workspace:*",
     "@driftpatch/adapter-sdk": "workspace:*",
     "@driftpatch/core": "workspace:*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "ts-morph": "^24.0.0"
   }
 }

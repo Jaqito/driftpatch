@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { runInit } from "./commands/init.js";
 import { runRun } from "./commands/run.js";
+import { runIndex } from "./commands/index-cmd.js";
 import { runAdapterInit, runAdapterGenerate, runAdapterTest } from "./commands/adapter.js";
 
 export function buildProgram(): Command {
@@ -16,6 +17,22 @@ export function buildProgram(): Command {
     .option("--repo <path>", "repo path", ".")
     .action(async (opts) => {
       await runInit({ repo: opts.repo });
+    });
+
+  program
+    .command("index")
+    .description("Build the RepoIndex and print summary; optionally dump JSON")
+    .option("--repo <path>", "repo path", ".")
+    .option("--out <path>", "write full index JSON to this path")
+    .option("--pretty", "pretty-print the JSON output", false)
+    .option("--no-cache", "rebuild even if a cached index exists")
+    .action(async (opts) => {
+      await runIndex({
+        repo: opts.repo,
+        out: opts.out,
+        pretty: Boolean(opts.pretty),
+        noCache: !opts.cache,
+      });
     });
 
   program

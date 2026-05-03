@@ -77,9 +77,20 @@ export interface ApplyResult {
 export interface RepoIndex {
   rootPath: string;
   sha: string;
-  importsByFile: Map<string, string[]>;
+  dirty: boolean;
+  files: string[];
+  importsByFile: Map<string, ImportEdge[]>;
   filesByPackage: Map<string, string[]>;
   symbols: Map<string, SymbolDef[]>;
+  jsxUsages: JsxUsage[];
+  stringLiterals: StringLiteralUsage[];
+}
+
+export interface ImportEdge {
+  source: string;
+  importedNames: string[];
+  isTypeOnly: boolean;
+  line: number;
 }
 
 export interface SymbolDef {
@@ -87,6 +98,45 @@ export interface SymbolDef {
   kind: "function" | "class" | "interface" | "type" | "variable" | "component";
   filePath: string;
   line: number;
+  exported: boolean;
+}
+
+export interface JsxUsage {
+  filePath: string;
+  line: number;
+  componentName: string;
+  importSource?: string;
+  props: Array<{
+    name: string;
+    valueLiteral?: string;
+  }>;
+}
+
+export type StringLiteralContext =
+  | "call_argument"
+  | "property_value"
+  | "object_value"
+  | "variable_init"
+  | "jsx_attribute"
+  | "other";
+
+export interface StringLiteralUsage {
+  filePath: string;
+  line: number;
+  value: string;
+  context: StringLiteralContext;
+}
+
+export interface SerializedRepoIndex {
+  rootPath: string;
+  sha: string;
+  dirty: boolean;
+  files: string[];
+  importsByFile: Record<string, ImportEdge[]>;
+  filesByPackage: Record<string, string[]>;
+  symbols: Record<string, SymbolDef[]>;
+  jsxUsages: JsxUsage[];
+  stringLiterals: StringLiteralUsage[];
 }
 
 export interface RepoSkill {

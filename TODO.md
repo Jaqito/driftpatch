@@ -47,18 +47,19 @@ Layer status reflects current commits. "Stub" = file exists with placeholder; "D
 - [ ] **Run cache** keyed by `(change_event_id, repo_sha, skill_hash)`
 - [ ] **Type-aware planner**: feed new SDK type surface (`.d.ts`, JSON schema, or local wrapper types) into the planner prompt to kill hallucinated APIs
 
-### Layer 1.5 — Minimal RepoIndex (next chunk)
+### Layer 1.5 — Minimal RepoIndex
 
-Reordered ahead of Layer 2 because the index is the load-bearing product value. Adapter SDK contract can be validated with a stub adapter; the index can't.
-
-- [ ] `ts-morph`-based scanner with import-graph extraction
-- [ ] **JSX usage extraction**: component name, props, prop values, import source
-- [ ] **String literal usage extraction** for webhook/event names
-- [ ] Symbol table (declarations + references for components, types, functions)
-- [ ] Provider usage map (precomputed "files using `@shopify/polaris`" lookup)
-- [ ] **Source file filters from skill include/exclude globs**
-- [ ] JSON output fixture for inspection / debugging
-- [ ] Cache by `repo_sha`
+- [x] `ts-morph`-based scanner with import-graph extraction (named imports, type-only flag, package grouping that skips node builtins + path aliases)
+- [x] **JSX usage extraction**: component name, props with literal values, resolved import source
+- [x] **String literal usage extraction** with context, identifier-like filter, skips imports
+- [x] Symbol table (function/component/class/interface/type/variable, exported flag)
+- [x] Provider usage map via `filesByPackage`
+- [x] JSON output / serialization (`serializeIndex`/`deserializeIndex`)
+- [x] Cache by git HEAD `repo_sha`; dirty trees skip cache
+- [x] `driftpatch index` CLI command with summary + `--out` JSON dump
+- [x] Tests on a small TS+TSX fixture repo (passes 7/7)
+- [x] Smoke-run on `shopify-components` (208 files in <1s)
+- [ ] **Source file filters from skill include/exclude globs** (still hardcoded defaults; needs skill loader first)
 
 ### Layer 2 — Polaris adapter + fixtures (eval anchor)
 - [x] `examples/adapter-polaris` skeleton (no parser yet)

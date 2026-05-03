@@ -3,7 +3,7 @@ import { SyntaxKind } from "ts-morph";
 import type { StringLiteralContext, StringLiteralUsage } from "../types.js";
 
 const MIN_LENGTH = 3;
-const IDENTIFIER_LIKE = /^[a-z][a-z0-9_.]*$/i;
+const IDENTIFIER_LIKE = /^[a-z][a-z0-9_.-]*$/i;
 
 export function extractStringLiterals(
   source: SourceFile,

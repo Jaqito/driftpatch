@@ -57,8 +57,33 @@ function collectPolarisJsx(index: RepoIndex): PolarisJsxBucket {
     byKebabName.set(kebabName, list);
   }
 
+  // Also detect createElement('s-*', ...) and h('s-*', ...) wrapper patterns —
+  // common in libraries that target React but use createElement directly to
+  // pass through to web components.
+  const seenSynthetic = new Set<string>();
+  for (const lit of index.stringLiterals) {
+    if (!POLARIS_ELEMENT_PATTERN.test(lit.value)) continue;
+    if (lit.context !== "call_argument") continue;
+    const key = `${lit.filePath}|${lit.value}`;
+    if (seenSynthetic.has(key)) continue;
+    seenSynthetic.add(key);
+
+    const synthetic: JsxUsage = {
+      filePath: lit.filePath,
+      line: lit.line,
+      componentName: lit.value,
+      props: [],
+    };
+    usages.push(synthetic);
+    const list = byKebabName.get(lit.value) ?? [];
+    list.push(synthetic);
+    byKebabName.set(lit.value, list);
+  }
+
   return { usages, byKebabName };
 }
+
+const POLARIS_ELEMENT_PATTERN = /^s-[a-z][a-z0-9-]*$/;
 
 function buildWrapperCandidates(
   index: RepoIndex,
@@ -68,7 +93,25 @@ function buildWrapperCandidates(
 
   for (const [kebabName, usages] of bucket.byKebabName) {
     for (const usage of usages) {
-      if (usage.componentName.startsWith("s-")) continue;
+      if (usage.componentName.startsWith("s-")) {
+        // Synthetic JSX usage from a createElement('s-*', ...) hit — the file
+        // itself is a wrapper. Find the symbols this file exports and treat
+        // them as the wrapper candidates.
+        const fileSymbols = index.symbols.get(usage.filePath) ?? [];
+        const exported = fileSymbols
+          .filter((s) => s.exported && (s.kind === "component" || s.kind === "variable" || s.kind === "function"))
+          .map((s) => s.name);
+        if (exported.length === 0) continue;
+
+        const filesMap = wrappersByElement.get(kebabName) ?? new Map();
+        const entry = filesMap.get(usage.filePath) ?? { exports: new Set<string>(), score: 0 };
+        for (const name of exported) entry.exports.add(name);
+        entry.score += scoreCandidate(usage.filePath, undefined) + 0.5;
+        filesMap.set(usage.filePath, entry);
+        wrappersByElement.set(kebabName, filesMap);
+        continue;
+      }
+
       const exportName = usage.originalName ?? usage.componentName;
       const exportingFiles = findFilesExporting(index, exportName);
 

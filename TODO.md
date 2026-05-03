@@ -62,15 +62,26 @@ Layer status reflects current commits. "Stub" = file exists with placeholder; "D
 - [ ] **Source file filters from skill include/exclude globs** (still hardcoded defaults; needs skill loader first)
 
 ### Layer 2 — Polaris adapter + fixtures (eval anchor)
-- [x] `examples/adapter-polaris` skeleton (no parser yet)
-- [ ] **Define Polaris `EntityDef` shape** for components / props / events
-- [ ] Pull 2–3 real Polaris changelogs into `examples/adapter-polaris/fixtures/`
-- [ ] **One mechanical fixture + one behavior/ambiguous fixture** at minimum
-- [ ] Implement `parseChangelog` for Polaris's actual format
-- [ ] **Implement `fetchChangelog(from, to)`** — hit GitHub Releases API (or `CHANGELOG.md`) for `shopify/polaris`, return raw changelog scoped to the version range
-- [ ] Cache fetched changelogs to `.driftpatch/cache/polaris/<from>-<to>.md` so repeated runs are offline-friendly
-- [ ] Author `fixtures.test.ts` asserting `ChangeEvent[]` per fixture
+
+**Reality check (verified 2026-05-02):** Polaris ships zero structured changelog. The CDN bundle at `https://cdn.shopify.com/shopifycloud/polaris.js` *is* the source of truth — minified, identified only by `/*!<sha>*/` at top. A third-party reverse-engineering site (`polaris-changelog.dev`) archives historical builds at `/builds/<sha>.js` and publishes an RSS feed of summaries. Custom-element names, observed attributes, and even prop enum values survive minification because they're string-keyed.
+
+So the Polaris adapter is a **bundle differ**, not a markdown parser.
+
+- [x] `examples/adapter-polaris` skeleton
+- [ ] **Define Polaris `EntityDef` shape**: `{ name, observedAttributes, properties: { name → { kind, enumValues? } }, methods }`
+- [ ] **Bundle fetcher**: `https://polaris-changelog.dev/builds/<sha>.js` for historical, `https://cdn.shopify.com/shopifycloud/polaris.js` for current
+- [ ] **API surface extractor**: load bundle in `node:vm` with stubbed `customElements.define`, capture each class's `observedAttributes` + getters/setters. Fall back to jsdom if bundle needs DOM globals to evaluate.
+- [ ] **Surface differ**: two surface snapshots → `ChangeEvent[]` (element added/removed, attribute added/removed, enum value changes, method changes). Diff is computed, not LLM-interpreted.
+- [ ] **RSS feed reader**: `https://polaris-changelog.dev/rss.xml` enumerates builds and provides human descriptions; cross-reference into `ChangeEvent.description`.
+- [ ] **Self-snapshot fallback**: each `driftpatch run` fetches the current CDN bundle, hashes it, caches at `.driftpatch/cache/polaris/<hash>.js`. Reduces dependency on `polaris-changelog.dev` over time.
+- [ ] **Implement `fetchChangelog(fromSha, toSha)`** wrapping bundle fetch + cache
+- [ ] **Implement `parseChangelog(raw)`** wrapping extract + diff
+- [ ] `versionRange` semantics: SHA-based (with short-SHA support). Document the deviation from semver.
+- [ ] Fixture: two archived Polaris builds with a known surface diff (one mechanical change, one prop-shape change)
+- [ ] Author `fixtures.test.ts` asserting `ChangeEvent[]` for the build pair
 - [ ] Wire `driftpatch adapter test --provider polaris` to actually run it
+
+**Risk:** dependency on `polaris-changelog.dev` (third-party, not Shopify). Self-snapshot fallback partly mitigates; documented as known constraint.
 
 ### Layer 3 — `driftpatch init`
 - [ ] Repo scanner: detect language, package manager, candidate areas

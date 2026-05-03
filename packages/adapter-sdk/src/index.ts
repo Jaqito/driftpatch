@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "@driftpatch/core";
+import type { ChangeEvent, ProviderSnapshot, RepoIndex } from "@driftpatch/core";
 
 export type Version = string;
 
@@ -29,6 +29,14 @@ export interface ProviderAdapter {
   fetchChangelog?(from: Version, to: Version): Promise<RawChangelog>;
   parseChangelog(raw: RawChangelog): Promise<ChangeEvent[]> | ChangeEvent[];
   getEntityDefinition?(name: string, version: Version): EntityDef | null;
+
+  /**
+   * Per-provider repo summarization. Inspects the index for evidence of how
+   * this provider is consumed in the repo (JSX, call sites, literals, etc).
+   * Optional — `summarizeProviderDefault` in @driftpatch/core provides a
+   * baseline impl that just lists files importing the package.
+   */
+  summarize?(index: RepoIndex): ProviderSnapshot;
 }
 
 export function defineAdapter(adapter: ProviderAdapter): ProviderAdapter {

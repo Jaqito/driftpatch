@@ -4,3 +4,19 @@ export { indexRepo, serializeIndex, deserializeIndex } from "./indexer/index.js"
 export type { IndexOptions } from "./indexer/index.js";
 export { locate } from "./locator/index.js";
 export type { LocatorOptions, ProviderConventionsHint } from "./locator/index.js";
+export type {
+  AreaSnapshot,
+  CallAffinity,
+  DirSummary,
+  JsxAffinity,
+  LiteralAffinity,
+  PackageManager,
+  PropertyValueAffinity,
+  ProviderAffinity,
+  ProviderSnapshot,
+  RepoLanguage,
+  RepoSummary,
+  WrapperCandidate,
+} from "./summary/types.js";
+export { summarizeProviderDefault } from "./summary/default.js";
+export type { DefaultSummarizeOptions } from "./summary/default.js";

@@ -3,6 +3,7 @@ import type { ChangeEvent } from "@driftpatch/core";
 import { diffSurfaces } from "./differ.js";
 import { extractApiSurface } from "./extractor.js";
 import { fetchBundle } from "./fetcher.js";
+import { summarizePolaris } from "./summarize.js";
 import type { ApiSurface, BundleRef } from "./types.js";
 
 interface PolarisRawChangelog {
@@ -33,6 +34,8 @@ export const polarisAdapter = defineAdapter({
     };
   },
 
+  summarize: summarizePolaris,
+
   parseChangelog(raw): ChangeEvent[] {
     const polaris = raw as unknown as PolarisRawChangelog;
     const fromSurface = extractApiSurface(
@@ -55,4 +58,5 @@ export const polarisAdapter = defineAdapter({
 export { fetchBundle } from "./fetcher.js";
 export { extractApiSurface } from "./extractor.js";
 export { diffSurfaces } from "./differ.js";
+export { summarizePolaris } from "./summarize.js";
 export type { ApiSurface, ElementSurface, BundleRef } from "./types.js";

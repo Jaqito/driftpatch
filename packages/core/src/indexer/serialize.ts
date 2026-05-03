@@ -11,6 +11,7 @@ export function serializeIndex(index: RepoIndex): SerializedRepoIndex {
     symbols: mapToRecord(index.symbols),
     jsxUsages: index.jsxUsages,
     stringLiterals: index.stringLiterals,
+    callSites: index.callSites,
   };
 }
 
@@ -25,6 +26,7 @@ export function deserializeIndex(json: SerializedRepoIndex): RepoIndex {
     symbols: recordToMap<SymbolDef[]>(json.symbols),
     jsxUsages: json.jsxUsages,
     stringLiterals: json.stringLiterals,
+    callSites: json.callSites,
   };
 }
 

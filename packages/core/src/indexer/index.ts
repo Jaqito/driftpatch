@@ -1,7 +1,15 @@
 import path from "node:path";
 import { Project } from "ts-morph";
-import type { ImportEdge, JsxUsage, RepoIndex, StringLiteralUsage, SymbolDef } from "../types.js";
+import type {
+  CallSite,
+  ImportEdge,
+  JsxUsage,
+  RepoIndex,
+  StringLiteralUsage,
+  SymbolDef,
+} from "../types.js";
 import { cachePathFor, readCache, readRepoSha, writeCache } from "./cache.js";
+import { extractCallSites } from "./calls.js";
 import { buildPackageMap, extractImports } from "./imports.js";
 import { extractJsxUsages } from "./jsx.js";
 import { extractStringLiterals } from "./strings.js";
@@ -57,6 +65,7 @@ export async function indexRepo(
   const symbolsByFile = new Map<string, SymbolDef[]>();
   const jsxUsages: JsxUsage[] = [];
   const stringLiterals: StringLiteralUsage[] = [];
+  const callSites: CallSite[] = [];
 
   for (const source of sources) {
     const rel = path.relative(absRoot, source.getFilePath());
@@ -70,6 +79,7 @@ export async function indexRepo(
 
     jsxUsages.push(...extractJsxUsages(source, imports, rel));
     stringLiterals.push(...extractStringLiterals(source, rel));
+    callSites.push(...extractCallSites(source, imports, rel));
   }
 
   const filesByPackage = buildPackageMap(importsByFile);
@@ -84,6 +94,7 @@ export async function indexRepo(
     symbols: symbolsByFile,
     jsxUsages,
     stringLiterals,
+    callSites,
   };
 
   if (!dirty) {

@@ -84,6 +84,7 @@ export interface RepoIndex {
   symbols: Map<string, SymbolDef[]>;
   jsxUsages: JsxUsage[];
   stringLiterals: StringLiteralUsage[];
+  callSites: CallSite[];
 }
 
 export interface ImportEdge {
@@ -128,6 +129,16 @@ export interface StringLiteralUsage {
   context: StringLiteralContext;
 }
 
+export interface CallSite {
+  filePath: string;
+  line: number;
+  callee: string;
+  rootIdentifier: string;
+  importSource?: string;
+  argCount: number;
+  isNew: boolean;
+}
+
 export interface SerializedRepoIndex {
   rootPath: string;
   sha: string;
@@ -138,6 +149,7 @@ export interface SerializedRepoIndex {
   symbols: Record<string, SymbolDef[]>;
   jsxUsages: JsxUsage[];
   stringLiterals: StringLiteralUsage[];
+  callSites: CallSite[];
 }
 
 export interface RepoSkill {

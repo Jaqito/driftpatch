@@ -24,6 +24,8 @@ export async function runIndex(opts: IndexCommandOptions): Promise<void> {
     symbols: Object.values(serialized.symbols).reduce((n, arr) => n + arr.length, 0),
     jsxUsages: serialized.jsxUsages.length,
     stringLiterals: serialized.stringLiterals.length,
+    callSites: serialized.callSites.length,
+    callSitesWithImport: serialized.callSites.filter((c) => c.importSource).length,
     elapsedMs: elapsed,
   };
 

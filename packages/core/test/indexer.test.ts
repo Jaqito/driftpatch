@@ -12,6 +12,7 @@ describe("indexRepo", () => {
         "src/components/Button.tsx",
         "src/components/Card.tsx",
         "src/handlers/webhook.ts",
+        "src/lib/llm.ts",
       ].sort(),
     );
   });
@@ -19,7 +20,9 @@ describe("indexRepo", () => {
   it("groups files by package, ignoring node builtins and path aliases", async () => {
     const index = await indexRepo(FIXTURE, { useCache: false });
     const packages = Array.from(index.filesByPackage.keys()).sort();
-    expect(packages).toEqual(["@shopify/polaris", "react"]);
+    expect(packages).toEqual(
+      ["@anthropic-ai/sdk", "@auth0/nextjs-auth0", "@shopify/polaris", "react", "stripe"].sort(),
+    );
     expect(index.filesByPackage.get("@shopify/polaris")?.sort()).toEqual([
       "src/components/Button.tsx",
       "src/components/Card.tsx",

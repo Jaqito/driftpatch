@@ -107,9 +107,12 @@ So the Polaris adapter is a **bundle differ**, not a markdown parser.
 
 #### 3a — Index gaps to close first (3 of 5 cases need them)
 
-- [ ] **Function-call extraction in `@driftpatch/core` indexer**: capture `CallExpression`s on identifiers we care about (e.g. `stripe.checkout.sessions.create`, `prisma.user.findMany`, `messages.create`). Records callee chain + sample args + import source. ~50 LOC ts-morph addition.
+- [x] **Function-call extraction in `@driftpatch/core` indexer**: captures `CallExpression`s and `NewExpression`s with full callee chain (`stripe.checkout.sessions.create`), root identifier, resolved import source, arg count, and `isNew` flag. 5/5 unit tests pass. Real-repo smoke on shopify-components: 1769 call sites in 6s, 734 with resolved imports.
+- [ ] **Locator extension to consume `callSites`** (separate small task): the runtime locator currently matches on JSX + string literals only. Adding callSite matching covers Stripe/Anthropic/Prisma/Auth0 entity-as-method-call cases.
 - [ ] **Object-property-value extraction**: partially covered by string literal extractor's `object_value` context. Confirm sufficient for `{ model: "claude-..." }` Anthropic case before extending.
 - [ ] **Multi-language source files** (Prisma `schema.prisma`, GraphQL `.graphql`, etc) stay out of core. **Per-provider responsibility** — adapter brings its own non-TS indexer when needed; results merge into the provider's `ProviderSnapshot`.
+
+**Known V1 limitation: constructor-then-method pattern.** `const client = new Anthropic(); client.messages.create(...)` records `client.messages.create` with `rootIdentifier=client` and `importSource=undefined` (since `client` is a local var, not an import). Mitigation: locator/summarizer can scan files that import `@anthropic-ai/sdk` AND match method call shapes within those files. Variable-initializer tracking is V2.
 
 #### 3b — Summary types in core
 

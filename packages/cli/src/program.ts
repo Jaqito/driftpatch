@@ -25,6 +25,7 @@ export function buildProgram(): Command {
     .option("--out <path>", "write the summary JSON to this path (debug)")
     .option("--pretty", "pretty-print the JSON output", false)
     .option("--effort <level>", "LLM effort level: low, medium, high, max", "medium")
+    .option("--model <id>", "Claude model id (e.g. claude-sonnet-4-6 for cheaper testing)")
     .option("--force", "overwrite an existing driftpatch.skill.md", false)
     .action(async (opts) => {
       await runInit({
@@ -33,6 +34,7 @@ export function buildProgram(): Command {
         out: opts.out,
         pretty: Boolean(opts.pretty),
         effort: opts.effort,
+        model: opts.model,
         force: Boolean(opts.force),
       });
     });
@@ -62,6 +64,14 @@ export function buildProgram(): Command {
     .option("--provider <name>", "provider adapter name", "generic")
     .option("--repo <path>", "target repo to index and locate against")
     .option("--skill <path>", "override skill file path")
+    .option("--patch", "generate proposed patch via LLM after impact report", false)
+    .option("--effort <level>", "patch LLM effort: low|medium|high|max", "medium")
+    .option("--model <id>", "Claude model id for the patcher (e.g. claude-sonnet-4-6 for cheaper testing)")
+    .option(
+      "--min-confidence <level>",
+      "patch only impacts at this confidence or higher (low|medium|high)",
+      "high",
+    )
     .option("--pr", "open a PR after applying", false)
     .action(async (opts) => {
       await runRun({
@@ -71,6 +81,10 @@ export function buildProgram(): Command {
         provider: opts.provider,
         repo: opts.repo,
         skill: opts.skill,
+        patch: Boolean(opts.patch),
+        effort: opts.effort,
+        model: opts.model,
+        minConfidence: opts.minConfidence,
         pr: Boolean(opts.pr),
       });
     });

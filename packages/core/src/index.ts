@@ -28,3 +28,19 @@ export { mergeSkill } from "./summary/merge.js";
 export { serializeSkillToMarkdown } from "./summary/serialize.js";
 export { loadSkill, parseSkillMarkdown } from "./summary/load.js";
 export type { LoadSkillResult } from "./summary/load.js";
+export {
+  proposePatch,
+  planFilePatch,
+  assemblePatch,
+  FilePatchPlanSchema,
+  ReplacementBlockSchema,
+} from "./patcher/index.js";
+export type {
+  AssembledFilePatch,
+  AssembledPatch,
+  FilePatchPlan,
+  ProposePatchInput,
+  ProposePatchProgress,
+  ProposePatchResult,
+  ReplacementBlock,
+} from "./patcher/index.js";

@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { genericAdapter } from "@driftpatch/adapter-generic";
 import type { ProviderAdapter, RawChangelog } from "@driftpatch/adapter-sdk";
@@ -6,7 +6,9 @@ import {
   indexRepo,
   loadSkill,
   locate,
+  proposePatch,
   type ChangeEvent,
+  type FilePatchPlan,
   type ImpactCandidate,
   type ProviderConventionsHint,
   type RepoSkill,
@@ -21,6 +23,10 @@ export interface RunOptions {
   repo?: string;
   skill?: string;
   pr: boolean;
+  patch: boolean;
+  effort?: "low" | "medium" | "high" | "max";
+  model?: string;
+  minConfidence: "low" | "medium" | "high";
 }
 
 const ADAPTERS: Record<string, ProviderAdapter> = {
@@ -69,6 +75,7 @@ export async function runRun(opts: RunOptions): Promise<void> {
   };
 
   console.log("\n=== Impact report ===");
+  const candidatesByEvent = new Map<string, ImpactCandidate[]>();
   let totalCandidates = 0;
   for (const event of events) {
     const candidates = locate(event, index, {
@@ -77,17 +84,91 @@ export async function runRun(opts: RunOptions): Promise<void> {
       ...(skill ? { skill } : {}),
     });
     if (candidates.length === 0) continue;
+    candidatesByEvent.set(event.id, candidates);
     totalCandidates += candidates.length;
     printChangeImpact(event, candidates);
   }
 
   if (totalCandidates === 0) {
     console.log("(no impacted files in this repo)");
-  } else {
-    console.log(`\n[run] ${totalCandidates} impact candidate(s) across all events`);
+    return;
+  }
+  console.log(`\n[run] ${totalCandidates} impact candidate(s) across all events`);
+
+  if (!opts.patch) {
+    console.log("[run] --patch not set; stopping after impact report. Pass --patch to generate proposed.patch.");
+    return;
+  }
+
+  const patchModel = opts.model ?? "claude-opus-4-7";
+  console.log(
+    `\n[run] generating patch via ${patchModel} (min confidence: ${opts.minConfidence}) ...`,
+  );
+  const result = await proposePatch(
+    {
+      repoPath: path.resolve(opts.repo),
+      events,
+      candidatesByEvent,
+      minConfidence: opts.minConfidence,
+      ...(skill ? { skill } : {}),
+    },
+    {
+      ...(opts.effort ? { effort: opts.effort } : {}),
+      model: patchModel,
+      onFileStart: (file, total, idx) => {
+        console.log(`  [${idx + 1}/${total}] planning patch for ${file} ...`);
+      },
+      onFileDone: (file, plan) => {
+        const blockSummary = plan.status === "patch" ? `${plan.blocks.length} blocks` : plan.status;
+        console.log(`    → ${file}: ${blockSummary}`);
+      },
+    },
+  );
+
+  for (const skip of result.skipped) {
+    console.log(`  [skip] ${skip.filePath}: ${skip.reason}`);
+  }
+
+  await writeArtifacts(opts.repo, result.patch.unifiedDiff, result.plans);
+
+  const applied = result.patch.files.filter((f) => f.status === "applied").length;
+  const failed = result.patch.files.filter((f) => f.status === "error").length;
+  const review = result.patch.files.filter((f) => f.status === "manual_review").length;
+  const skippedFiles = result.patch.files.filter((f) => f.status === "skipped").length;
+
+  console.log(
+    `\n[run] patch results: ${applied} applied · ${failed} errored · ${review} manual review · ${skippedFiles} skipped`,
+  );
+  console.log(
+    `[run] tokens: in=${result.totalUsage.inputTokens}, out=${result.totalUsage.outputTokens}, cache_read=${result.totalUsage.cacheReadInputTokens}, cache_write=${result.totalUsage.cacheCreationInputTokens}`,
+  );
+
+  if (failed > 0) {
+    console.log("\n[run] errors:");
+    for (const file of result.patch.files) {
+      if (file.status === "error") {
+        for (const err of file.errors) console.log(`  ${file.filePath}: ${err}`);
+      }
+    }
   }
 
   if (opts.pr) console.log("\n[run] --pr requested but apply/PR pipeline not implemented yet");
+}
+
+async function writeArtifacts(
+  repoPath: string,
+  unifiedDiff: string,
+  plans: FilePatchPlan[],
+): Promise<void> {
+  const outDir = path.join(path.resolve(repoPath), ".driftpatch");
+  await mkdir(outDir, { recursive: true });
+  await writeFile(path.join(outDir, "proposed.patch"), unifiedDiff);
+  await writeFile(
+    path.join(outDir, "patch-plan.json"),
+    JSON.stringify(plans, null, 2),
+  );
+  console.log(`\n[run] wrote ${path.join(outDir, "proposed.patch")}`);
+  console.log(`[run] wrote ${path.join(outDir, "patch-plan.json")}`);
 }
 
 async function loadEvents(adapter: ProviderAdapter, opts: RunOptions): Promise<ChangeEvent[]> {

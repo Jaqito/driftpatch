@@ -17,6 +17,7 @@ export interface InitOptions {
   out?: string;
   pretty: boolean;
   effort?: "low" | "medium" | "high" | "max";
+  model?: string;
   force: boolean;
 }
 
@@ -106,9 +107,13 @@ export async function runInit(opts: InitOptions): Promise<void> {
     }
   }
 
-  console.log("\n[init] drafting skill via Claude (this calls the API) ...");
+  const model = opts.model ?? "claude-opus-4-7";
+  console.log(`\n[init] drafting skill via ${model} (this calls the API) ...`);
   const t2 = Date.now();
-  const result = await draftSkill(summary, { effort: opts.effort });
+  const result = await draftSkill(summary, {
+    ...(opts.effort ? { effort: opts.effort } : {}),
+    model,
+  });
   console.log(
     `[init] draft returned in ${Date.now() - t2}ms (in=${result.usage.inputTokens}, out=${result.usage.outputTokens}, cache_read=${result.usage.cacheReadInputTokens}, cache_write=${result.usage.cacheCreationInputTokens})`,
   );

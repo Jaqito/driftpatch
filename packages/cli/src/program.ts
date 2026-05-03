@@ -38,14 +38,20 @@ export function buildProgram(): Command {
   program
     .command("run")
     .description("Ingest a changelog, generate and validate a patch")
-    .requiredOption("--source <path>", "changelog file")
+    .option("--source <path>", "changelog file (alternative to --from/--to)")
+    .option("--from <ver>", "previous version (calls adapter.fetchChangelog)")
+    .option("--to <ver>", "current/target version (calls adapter.fetchChangelog)")
     .option("--provider <name>", "provider adapter name", "generic")
+    .option("--repo <path>", "target repo to index and locate against")
     .option("--skill <path>", "override skill file path")
     .option("--pr", "open a PR after applying", false)
     .action(async (opts) => {
       await runRun({
         source: opts.source,
+        from: opts.from,
+        to: opts.to,
         provider: opts.provider,
+        repo: opts.repo,
         skill: opts.skill,
         pr: Boolean(opts.pr),
       });

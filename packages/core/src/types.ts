@@ -105,6 +105,7 @@ export interface JsxUsage {
   filePath: string;
   line: number;
   componentName: string;
+  originalName?: string;
   importSource?: string;
   props: Array<{
     name: string;

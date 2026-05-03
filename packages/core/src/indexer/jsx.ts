@@ -26,16 +26,26 @@ export function extractJsxUsages(
       props.push({ name, valueLiteral: valueLiteral ?? undefined });
     }
 
+    const lookupKey = tagName.split(".")[0] ?? tagName;
+    const importInfo = importIndex.get(lookupKey);
     usages.push({
       filePath,
       line: opening.getStartLineNumber(),
       componentName: tagName,
-      importSource: importIndex.get(tagName.split(".")[0] ?? tagName),
+      ...(importInfo?.original && importInfo.original !== lookupKey
+        ? { originalName: importInfo.original }
+        : {}),
+      ...(importInfo?.source ? { importSource: importInfo.source } : {}),
       props,
     });
   });
 
   return usages;
+}
+
+interface ImportInfo {
+  source: string;
+  original: string;
 }
 
 function pickOpening(node: Node) {
@@ -71,20 +81,25 @@ function readLiteralValue(attr: JsxAttribute): string | null {
   return null;
 }
 
-function buildImportIndex(imports: ImportEdge[]): Map<string, string> {
-  const index = new Map<string, string>();
+function buildImportIndex(imports: ImportEdge[]): Map<string, ImportInfo> {
+  const index = new Map<string, ImportInfo>();
   for (const edge of imports) {
     for (const raw of edge.importedNames) {
-      const localName = extractLocalName(raw);
-      if (localName) index.set(localName, edge.source);
+      const parsed = parseImportSpec(raw);
+      if (!parsed) continue;
+      index.set(parsed.local, { source: edge.source, original: parsed.original });
     }
   }
   return index;
 }
 
-function extractLocalName(spec: string): string | null {
-  const asMatch = / as ([A-Za-z_$][\w$]*)$/.exec(spec);
-  if (asMatch) return asMatch[1] ?? null;
+function parseImportSpec(spec: string): { local: string; original: string } | null {
+  const asMatch = /^(.+?)\s+as\s+([A-Za-z_$][\w$]*)$/.exec(spec);
+  if (asMatch) {
+    const original = asMatch[1]!.replace(/^default\s+/, "default");
+    const local = asMatch[2]!;
+    return { local, original: original === "default" ? "default" : original };
+  }
   if (spec === "*" || spec === "default") return null;
-  return spec;
+  return { local: spec, original: spec };
 }

@@ -50,16 +50,27 @@ Layer status reflects current commits. "Stub" = file exists with placeholder; "D
 ### Layer 1.5 — Minimal RepoIndex
 
 - [x] `ts-morph`-based scanner with import-graph extraction (named imports, type-only flag, package grouping that skips node builtins + path aliases)
-- [x] **JSX usage extraction**: component name, props with literal values, resolved import source
+- [x] **JSX usage extraction**: component name, props with literal values, resolved import source, **un-aliased original name** (so `import { Card as PolarisCard }` resolves back to `Card`)
 - [x] **String literal usage extraction** with context, identifier-like filter, skips imports
 - [x] Symbol table (function/component/class/interface/type/variable, exported flag)
 - [x] Provider usage map via `filesByPackage`
 - [x] JSON output / serialization (`serializeIndex`/`deserializeIndex`)
 - [x] Cache by git HEAD `repo_sha`; dirty trees skip cache
 - [x] `driftpatch index` CLI command with summary + `--out` JSON dump
-- [x] Tests on a small TS+TSX fixture repo (passes 7/7)
+- [x] Tests on a small TS+TSX fixture repo (passes)
 - [x] Smoke-run on `shopify-components` (208 files in <1s)
 - [ ] **Source file filters from skill include/exclude globs** (still hardcoded defaults; needs skill loader first)
+
+### Layer 1.75 — Locator (provider-aware impact matching)
+
+- [x] `locate(change, index, opts)` in `@driftpatch/core/src/locator/`
+- [x] Name-variant heuristics: kebab → PascalCase, prefix stripping, alias-aware via `originalName`
+- [x] Confidence model: direct kebab usage → high; PascalCase wrapper from a provider-named import path → high; PascalCase wrapper from relative path → low
+- [x] String literal matching for webhook-style entities
+- [x] Per-file aggregation: dedupe reasons across multiple usages in same file, upgrade confidence
+- [x] Tests pass (5/5 locator + 7/7 indexer = 12/12)
+- [x] CLI `run --provider <name> --from <ver> --to <ver> --repo <path>` wires fetch → diff → index → locate → impact report
+- [x] **End-to-end demo on shopify-components proven**: real Polaris CDN diff produces 4 ChangeEvents, locator finds 9 affected files across `app/`, `components/polaris/`, and `data/examples/` — with line numbers and reasons
 
 ### Layer 2 — Polaris adapter + fixtures (eval anchor)
 

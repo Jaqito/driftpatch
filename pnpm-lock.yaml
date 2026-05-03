@@ -57,6 +57,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@driftpatch-example/adapter-polaris':
+        specifier: workspace:*
+        version: link:../../examples/adapter-polaris
       '@driftpatch/adapter-generic':
         specifier: workspace:*
         version: link:../adapter-generic

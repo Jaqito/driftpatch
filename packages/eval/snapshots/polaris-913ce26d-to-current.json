@@ -1,0 +1,127 @@
+{
+  "provider": "polaris",
+  "events": [
+    {
+      "id": "5b92116e934236f3",
+      "kind": "addition",
+      "entity": "s-checkbox.labelAccessibilityVisibility",
+      "fromVersion": "913ce26d86e1755e5b8c29606465c88c2fccf691",
+      "toVersion": "5ff803d5f82b5b8a4238acb189bfebec198906dc",
+      "risk": "low"
+    },
+    {
+      "id": "c1a75a78fb204b05",
+      "kind": "addition",
+      "entity": "s-checkbox[labelaccessibilityvisibility]",
+      "fromVersion": "913ce26d86e1755e5b8c29606465c88c2fccf691",
+      "toVersion": "5ff803d5f82b5b8a4238acb189bfebec198906dc",
+      "risk": "low"
+    },
+    {
+      "id": "1154ece0a586e549",
+      "kind": "addition",
+      "entity": "s-modal.alignSelf",
+      "fromVersion": "913ce26d86e1755e5b8c29606465c88c2fccf691",
+      "toVersion": "5ff803d5f82b5b8a4238acb189bfebec198906dc",
+      "risk": "low"
+    },
+    {
+      "id": "c0718d3c754af847",
+      "kind": "addition",
+      "entity": "s-modal[alignself]",
+      "fromVersion": "913ce26d86e1755e5b8c29606465c88c2fccf691",
+      "toVersion": "5ff803d5f82b5b8a4238acb189bfebec198906dc",
+      "risk": "low"
+    }
+  ],
+  "locatorByEvent": {
+    "c1a75a78fb204b05": [
+      {
+        "filePath": "src/app/page.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "Checkbox"
+        ],
+        "reasonSignals": [
+          "jsx_wrapper"
+        ]
+      },
+      {
+        "filePath": "src/components/checkbox.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "s-checkbox"
+        ],
+        "reasonSignals": [
+          "skill_mapped"
+        ]
+      }
+    ],
+    "5b92116e934236f3": [
+      {
+        "filePath": "src/app/page.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "Checkbox"
+        ],
+        "reasonSignals": [
+          "jsx_wrapper"
+        ]
+      },
+      {
+        "filePath": "src/components/checkbox.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "s-checkbox"
+        ],
+        "reasonSignals": [
+          "skill_mapped"
+        ]
+      }
+    ],
+    "c0718d3c754af847": [
+      {
+        "filePath": "src/app/page.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "Modal"
+        ],
+        "reasonSignals": [
+          "jsx_wrapper"
+        ]
+      },
+      {
+        "filePath": "src/components/modal.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "s-modal"
+        ],
+        "reasonSignals": [
+          "skill_mapped"
+        ]
+      }
+    ],
+    "1154ece0a586e549": [
+      {
+        "filePath": "src/app/page.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "Modal"
+        ],
+        "reasonSignals": [
+          "jsx_wrapper"
+        ]
+      },
+      {
+        "filePath": "src/components/modal.tsx",
+        "confidence": "high",
+        "matchedSymbols": [
+          "s-modal"
+        ],
+        "reasonSignals": [
+          "skill_mapped"
+        ]
+      }
+    ]
+  }
+}

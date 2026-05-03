@@ -12,7 +12,11 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@driftpatch-example/adapter-polaris": "workspace:*",
     "@driftpatch/adapter-sdk": "workspace:*",
     "@driftpatch/core": "workspace:*"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.5"
   }
 }

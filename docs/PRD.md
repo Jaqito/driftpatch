@@ -285,19 +285,24 @@ Three commands at the top level (`init`, `run`, `adapter`). `pr` is a flag on `r
 
 ## 10. AI Usage Map
 
+**Architectural commitment: LLM is core to the product, not a fallback.** A deterministic-only patcher would only work for narrow mechanical-shape providers (Polaris attribute additions, simple renames). The whole point of "Generic Engine + Provider Adapter + Repo Skill" is to handle Stripe SDK changes, OpenAI model retirements, Auth0 callback shape changes, Prisma schema migrations, and behavior-change-shaped changes — all of which require LLM judgment to patch correctly. We commit to the API key as a runtime requirement. `@anthropic-ai/sdk` is a load-bearing core dependency.
+
+Where deterministic code helps: it pre-chews context so the LLM has high-signal input (RepoIndex, locator candidates, surface diffs), and it post-processes LLM output so we control the file mutation surface (replacement blocks → unified diff via deterministic assembly). The LLM is never asked to count line numbers or compute imports — those are handled by `ts-morph` around it.
+
 | Step | AI? | Rationale |
 |---|---|---|
 | Adapter parser generation (`adapter generate`) | Yes | Drafts parser from samples; FDE refines |
-| Skill generation (`init`) | Yes | Proposes structure from repo scan; user confirms interactively |
-| Changelog classification | Yes (in adapter) | Provider-shaped; adapter owns the prompt |
+| Skill generation (`init`) | Yes | Proposes structure from repo scan; user confirms interactively. Wrapper picks deterministic (top-scored candidate); LLM writes prose (description, area patterns, exclusions). |
+| Changelog classification | Yes (in adapter) | Provider-shaped; adapter owns the prompt. Adapters with structured sources (Polaris bundle diff, OpenAPI diff) skip the LLM entirely and emit ChangeEvents mechanically — that's an adapter-level optimization, not a contract change. |
 | Repo indexing | No | AST-based, deterministic |
-| File location | Yes (agentic) | Reads code, follows imports, reasons about relevance |
-| Patch planning | Yes | Reasoning step, fed type defs of new SDK version |
-| Patch generation | Yes (replacement blocks only) | Deterministic diff assembly downstream |
+| File location | Yes (agentic, with deterministic baseline) | The locator we shipped is heuristic + skill-aware and works well for known patterns. For ambiguous cases and providers without skill mappings, an agentic LLM step reads code and reasons about relevance. |
+| Patch planning | Yes | Reasoning step, fed type defs of new SDK version. Determines what to change in each impacted file. |
+| Patch generation | Yes (replacement blocks only) | Deterministic diff assembly downstream. The model emits old-text/new-text spans; engine assembles the unified diff. |
 | Diff assembly | No | Deterministic from replacement blocks |
 | Validation execution | No | Just runs `tsc`, `eslint`, tests |
-| Validation repair | Yes (one attempt) | Error → repaired patch |
-| Git/PR ops | No | `git`, `gh` |
+| Validation repair | Yes (one attempt) | Error → repaired patch. Required for the V1 happy path; one-shot, then revert. |
+| Git ops | No | `git` |
+| PR body / migration doc | Yes | Generated from artifacts (impact-report, patch-plan, diff). Single LLM call. |
 
 **Important: pass new SDK type definitions into the planner.** The changelog says what changed; the type defs say what's actually callable now. Without this the planner hallucinates APIs.
 

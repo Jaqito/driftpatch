@@ -1,7 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { genericAdapter } from "@driftpatch/adapter-generic";
-import { extractRepoSummary, indexRepo, type SummaryAdapter } from "@driftpatch/core";
+import {
+  draftSkill,
+  extractRepoSummary,
+  indexRepo,
+  mergeSkill,
+  serializeSkillToMarkdown,
+  type SummaryAdapter,
+} from "@driftpatch/core";
 import { polarisAdapter } from "@driftpatch-example/adapter-polaris";
 
 export interface InitOptions {
@@ -9,6 +16,8 @@ export interface InitOptions {
   dryRun: boolean;
   out?: string;
   pretty: boolean;
+  effort?: "low" | "medium" | "high" | "max";
+  force: boolean;
 }
 
 const ADAPTERS_FOR_SUMMARY: SummaryAdapter[] = [
@@ -79,9 +88,40 @@ export async function runInit(opts: InitOptions): Promise<void> {
     console.log(`\n[init] wrote summary to ${outPath}`);
   }
 
-  if (!opts.dryRun) {
-    console.log(
-      "\n[init] LLM-driven skill draft + interactive confirm not implemented yet — re-run with --dry-run to see only the summary",
-    );
+  if (opts.dryRun) {
+    return;
   }
+
+  const skillPath = path.join(path.resolve(opts.repo), "driftpatch.skill.md");
+  if (!opts.force) {
+    try {
+      const fs = await import("node:fs/promises");
+      await fs.stat(skillPath);
+      console.error(
+        `\n[init] ${skillPath} already exists. Re-run with --force to overwrite.`,
+      );
+      process.exit(2);
+    } catch {
+      // file doesn't exist, continue
+    }
+  }
+
+  console.log("\n[init] drafting skill via Claude (this calls the API) ...");
+  const t2 = Date.now();
+  const result = await draftSkill(summary, { effort: opts.effort });
+  console.log(
+    `[init] draft returned in ${Date.now() - t2}ms (in=${result.usage.inputTokens}, out=${result.usage.outputTokens}, cache_read=${result.usage.cacheReadInputTokens}, cache_write=${result.usage.cacheCreationInputTokens})`,
+  );
+
+  const skill = mergeSkill(summary, result.draft);
+  const markdown = serializeSkillToMarkdown(skill);
+
+  await writeFile(skillPath, markdown);
+  console.log(`\n[init] wrote ${skillPath}`);
+  console.log(
+    `[init] ${skill.areas.length} areas, ${Object.keys(skill.providerMappings).length} providers mapped, ${skill.validation.commands.length} validation commands`,
+  );
+  console.log(
+    "[init] review the file, then run 'driftpatch run --provider <name> --from <ver> --to <ver> --repo .'",
+  );
 }

@@ -8,11 +8,22 @@
 
 ## What I built and why
 
-**DriftPatch** turns upstream-library changes into reviewable, validated GitHub PRs in a downstream consumer's repo. The motivating example is **Shopify Polaris**: it ships an unversioned CDN bundle at `cdn.shopify.com/shopifycloud/polaris.js` — no semver, no changelog, no migration guide, just a minified file with a build SHA at the top. When Shopify adds a new attribute to `<s-button>`, downstream wrapper libraries silently fall behind. I have my own wrapper library (`react-polaris-web-components`) that I babysit through these and it's exactly the kind of grind I'd want fixed.
+**DriftPatch turns upstream changes into validated pull requests by generating and applying codemods using a constrained AI + AST harness.**
 
-The architecture is **generic engine + per-upstream provider adapter + per-repo skill**. The engine never knows about Polaris specifically; the Polaris adapter never knows about a specific customer repo; the skill (a markdown file in the customer repo) bridges them. End-to-end pipeline: fetch upstream artifacts → diff → index target repo → locate impacts → LLM-patch (replacement blocks, never unified diffs) → validate against the repo's own commands → one-shot LLM repair on failure → branch + commit + push + `gh pr create`. The LLM has exactly five jobs in the system; everything else is deterministic. **`docs/FLOW.md`** has the full breakdown with diagrams.
+Conceptually, DriftPatch generates codemods for upstream changes when the upstream system doesn't provide them. The motivating example is **Shopify Polaris**: it ships an unversioned CDN bundle at `cdn.shopify.com/shopifycloud/polaris.js` — no semver, no changelog, no migration guide, just a minified file with a build SHA at the top. When Shopify adds a new attribute to `<s-button>`, downstream wrapper libraries silently fall behind. I have my own wrapper library (`react-polaris-web-components`) that I babysit through these and it's exactly the kind of grind I'd want fixed.
 
-I ran it for real against my Polaris-wrapper repo on GitHub: ~30 seconds wall-clock, ~$0.06 in API costs (Sonnet 4.6), one merged-ready PR including a real-world repair where the first patch failed `npm run typecheck` because the installed `@shopify/polaris` types hadn't shipped the new attribute yet, and the repair LLM correctly diagnosed and fixed it.
+The architecture is **generic engine + per-upstream provider adapter + per-repo skill**. The engine never knows about Polaris specifically; the Polaris adapter never knows about a specific customer repo; the skill (a markdown file in the customer repo) bridges them.
+
+**The deterministic / AI boundary is explicit:**
+
+- **Deterministic**: indexing (ts-morph), diff generation, git operations, validation.
+- **AI**: change classification, patch planning, ambiguous transformations, repair.
+
+**The system is designed as a safety harness for code modification**: all changes are validated using the repo's own commands, and patches are only applied if they pass. The model never produces a unified diff or computes line numbers — it emits old/new code spans and the engine assembles the diff. That's how we eliminate the most common LLM failure mode for code patches.
+
+End-to-end pipeline: fetch upstream artifacts → diff → index target repo → locate impacts → LLM-patch (replacement blocks) → validate against the repo's own commands → one-shot LLM repair on failure → branch + commit + push + `gh pr create`. **[`docs/FLOW.md`](./FLOW.md)** has the full breakdown with diagrams.
+
+I ran it for real against my Polaris-wrapper repo on GitHub: ~30 seconds wall-clock, ~$0.06 in API costs (Sonnet 4.6), one merge-ready PR including a real-world repair where the first patch failed `npm run typecheck` because the installed `@shopify/polaris` types hadn't shipped the new attribute yet, and the repair LLM correctly diagnosed and fixed it.
 
 ## How I used AI
 
@@ -49,7 +60,7 @@ The connecting thread: every item above is either a new adapter (FDE-shaped, iso
 
 ## Limitations and rough edges (honest)
 
-- **LLM patcher is non-deterministic across runs**. Running the same patch twice with Sonnet 4.6 produced functionally identical but byte-different output (different doc-comment phrasing). The snapshot eval explicitly skips this layer for that reason.
+- **LLM patcher is non-deterministic across runs**. Running the same patch twice with Sonnet 4.6 produced functionally identical but byte-different output (different doc-comment phrasing). **This is why evaluation is done on intermediate artifacts** (events, locator candidates, plan structure) **rather than final patches** — the snapshot eval explicitly skips the LLM-output layer.
 - **Locator is weak on relative imports without skill mappings.** Files importing via `..` get marked low confidence even when the import resolves to a skill-mapped wrapper. Solvable with full import resolution; deferred.
 - **No per-run cost cap.** A pathological case (giant repo, many high-confidence files) could spend more than expected. `--max-files` budget flag is the obvious mitigation, not implemented.
 

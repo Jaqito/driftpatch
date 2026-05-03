@@ -26,3 +26,5 @@ export { draftSkill, SkillDraftSchema } from "./summary/draft.js";
 export type { DraftSkillOptions, DraftSkillResult, SkillDraft } from "./summary/draft.js";
 export { mergeSkill } from "./summary/merge.js";
 export { serializeSkillToMarkdown } from "./summary/serialize.js";
+export { loadSkill, parseSkillMarkdown } from "./summary/load.js";
+export type { LoadSkillResult } from "./summary/load.js";

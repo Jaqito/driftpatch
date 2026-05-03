@@ -1,12 +1,15 @@
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { genericAdapter } from "@driftpatch/adapter-generic";
 import type { ProviderAdapter, RawChangelog } from "@driftpatch/adapter-sdk";
 import {
   indexRepo,
+  loadSkill,
   locate,
   type ChangeEvent,
   type ImpactCandidate,
   type ProviderConventionsHint,
+  type RepoSkill,
 } from "@driftpatch/core";
 import { polarisAdapter } from "@driftpatch-example/adapter-polaris";
 
@@ -52,6 +55,14 @@ export async function runRun(opts: RunOptions): Promise<void> {
     `[run] indexed ${index.files.length} files (${index.jsxUsages.length} JSX usages, sha=${index.sha.slice(0, 8)}${index.dirty ? "-dirty" : ""})`,
   );
 
+  const skill = await loadOptionalSkill(opts.repo, opts.skill);
+  if (skill) {
+    const skillSummary = `${skill.areas.length} areas, ${Object.keys(skill.providerMappings).length} providers mapped`;
+    console.log(`[run] loaded skill (${skillSummary})`);
+  } else {
+    console.log("[run] no driftpatch.skill.md found; running without skill");
+  }
+
   const conventions: ProviderConventionsHint = {
     entityPrefix: adapter.conventions.entityPrefix,
     namingStyle: adapter.conventions.namingStyle,
@@ -63,6 +74,7 @@ export async function runRun(opts: RunOptions): Promise<void> {
     const candidates = locate(event, index, {
       conventions,
       providerAliases: [adapter.name],
+      ...(skill ? { skill } : {}),
     });
     if (candidates.length === 0) continue;
     totalCandidates += candidates.length;
@@ -96,6 +108,34 @@ async function loadEvents(adapter: ProviderAdapter, opts: RunOptions): Promise<C
   }
   console.error("[run] need either --source <file> or --from <ver> --to <ver>");
   process.exit(2);
+}
+
+async function loadOptionalSkill(
+  repoPath: string,
+  override: string | undefined,
+): Promise<RepoSkill | null> {
+  const skillPath = override ?? path.join(path.resolve(repoPath), "driftpatch.skill.md");
+  try {
+    const result = await loadSkill(skillPath);
+    if (result.warnings.length > 0) {
+      for (const w of result.warnings) console.warn(`[run] skill warning: ${w}`);
+    }
+    return result.skill;
+  } catch (err) {
+    if (override) {
+      console.error(`[run] failed to load --skill ${override}: ${describeError(err)}`);
+      process.exit(2);
+    }
+    return null;
+  }
+}
+
+function describeError(err: unknown): string {
+  if (err instanceof Error) {
+    if ("code" in err && (err as NodeJS.ErrnoException).code === "ENOENT") return "not found";
+    return err.message;
+  }
+  return String(err);
 }
 
 function printChangeImpact(event: ChangeEvent, candidates: ImpactCandidate[]): void {

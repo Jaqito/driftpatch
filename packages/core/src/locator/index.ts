@@ -1,4 +1,10 @@
-import type { ChangeEvent, Confidence, ImpactCandidate, RepoIndex } from "../types.js";
+import type {
+  ChangeEvent,
+  Confidence,
+  ImpactCandidate,
+  RepoIndex,
+  RepoSkill,
+} from "../types.js";
 import {
   computeNameVariants,
   looksLikeProviderImport,
@@ -8,6 +14,7 @@ import {
 export interface LocatorOptions {
   conventions?: ProviderConventionsHint;
   providerAliases?: string[];
+  skill?: RepoSkill;
 }
 
 interface CandidateAccumulator {
@@ -28,8 +35,19 @@ export function locate(
   const variants = computeNameVariants(elementHint, opts.conventions);
   const conv = opts.conventions ?? {};
   const aliases = opts.providerAliases ?? [];
+  const skillMappedFiles = collectSkillMappedFiles(change, opts.skill);
 
   const accumulator = new Map<string, CandidateAccumulator>();
+
+  // Skill-mapped wrapper hit — highest confidence; the user has confirmed
+  // this file is the canonical local wrapper for this entity.
+  for (const filePath of skillMappedFiles) {
+    addCandidate(accumulator, filePath, {
+      reason: `Skill maps ${elementHint} to ${filePath}`,
+      symbol: elementHint,
+      confidence: "high",
+    });
+  }
 
   for (const usage of index.jsxUsages) {
     const matchedVariant = variants.find(
@@ -42,9 +60,16 @@ export function locate(
       change.provider,
       aliases,
     );
+    const importsFromSkillMapped = usage.importSource
+      ? [...skillMappedFiles].some((f) =>
+          importPointsAtFile(usage.importSource!, usage.filePath, f),
+        )
+      : false;
 
     let confidence: Confidence;
     if (matchedVariant.kind === "direct") {
+      confidence = "high";
+    } else if (importsFromSkillMapped) {
       confidence = "high";
     } else if (isProviderImport) {
       confidence = "high";
@@ -108,6 +133,54 @@ function addCandidate(
 function upgradeConfidence(a: Confidence, b: Confidence): Confidence {
   const rank = { low: 0, medium: 1, high: 2 } as const;
   return rank[a] >= rank[b] ? a : b;
+}
+
+function collectSkillMappedFiles(
+  change: ChangeEvent,
+  skill: RepoSkill | undefined,
+): Set<string> {
+  const out = new Set<string>();
+  if (!skill) return out;
+  const mappings = skill.providerMappings[change.provider];
+  if (!mappings) return out;
+
+  const elementHint =
+    (change.attributes?.["element"] as string | undefined) ?? change.entity;
+  for (const mapping of mappings) {
+    if (
+      mapping.upstreamEntity === elementHint ||
+      mapping.upstreamEntity === change.entity ||
+      change.entity.startsWith(`${mapping.upstreamEntity}[`) ||
+      change.entity.startsWith(`${mapping.upstreamEntity}.`)
+    ) {
+      out.add(mapping.localFile);
+    }
+  }
+  return out;
+}
+
+function importPointsAtFile(
+  importSource: string,
+  fromFile: string,
+  candidateFile: string,
+): boolean {
+  // Treat path-alias and relative imports as plausibly pointing at the
+  // skill-mapped file when the basename or directory matches. Cheap heuristic
+  // that's good enough for confidence-upgrading; the run command uses the
+  // index for hard answers.
+  if (importSource.startsWith(".") || importSource.startsWith("@/") || importSource.startsWith("~/")) {
+    const candidateBase = candidateFile.split("/").pop() ?? "";
+    const baseWithoutExt = candidateBase.replace(/\.(tsx?|jsx?)$/, "");
+    if (importSource.endsWith(`/${baseWithoutExt}`) || importSource.endsWith(baseWithoutExt)) {
+      return true;
+    }
+    const candidateDir = candidateFile.split("/").slice(0, -1).join("/");
+    if (candidateDir && importSource.endsWith(candidateDir.split("/").pop() ?? "")) {
+      return true;
+    }
+  }
+  void fromFile;
+  return false;
 }
 
 export type { ProviderConventionsHint } from "./heuristics.js";

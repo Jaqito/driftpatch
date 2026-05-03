@@ -152,25 +152,37 @@ export interface SerializedRepoIndex {
   callSites: CallSite[];
 }
 
-export interface RepoSkill {
-  version: number;
-  repo: string;
-  language: string;
-  packageManager?: string;
-  validation: { commands: string[] };
-  areas: Array<{
-    name: string;
-    paths: string[];
-    pattern: string;
-  }>;
-  providerMappings: Record<
-    string,
-    Array<{
-      upstreamEntity: string;
-      localFile: string;
-      typeName?: string;
-    }>
-  >;
-  patchPolicy: Record<ChangeKind, "auto_apply" | "require_review" | "create_todo_only">;
-  examples: Array<{ title: string; body: string }>;
-}
+export const PatchPolicyValueSchema = z.enum([
+  "auto_apply",
+  "require_review",
+  "create_todo_only",
+]);
+export type PatchPolicyValue = z.infer<typeof PatchPolicyValueSchema>;
+
+export const RepoSkillSchema = z.object({
+  version: z.number().int().positive(),
+  repo: z.string(),
+  language: z.string(),
+  packageManager: z.string().optional(),
+  validation: z.object({ commands: z.array(z.string()) }),
+  areas: z.array(
+    z.object({
+      name: z.string(),
+      paths: z.array(z.string()),
+      pattern: z.string(),
+    }),
+  ),
+  providerMappings: z.record(
+    z.string(),
+    z.array(
+      z.object({
+        upstreamEntity: z.string(),
+        localFile: z.string(),
+        typeName: z.string().optional(),
+      }),
+    ),
+  ),
+  patchPolicy: z.record(ChangeKindSchema, PatchPolicyValueSchema),
+  examples: z.array(z.object({ title: z.string(), body: z.string() })),
+});
+export type RepoSkill = z.infer<typeof RepoSkillSchema>;

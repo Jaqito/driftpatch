@@ -30,7 +30,7 @@ Turn upstream changes into reviewable, validated, repo-aware code updates.
 ## 3. Non-Goals (V1)
 
 - **Built-in adapter library.** Adapters are FDE-authored per engagement and shared via internal registry; we do not ship a curated catalog.
-- Real-time monitoring of upstream sources
+- **Continuous polling / auto-triggered runs.** On-demand `fetchChangelog(from, to)` is in scope (and expected of real adapters); the scheduled-poller, dedup, and secret-management loop is deferred.
 - UI / dashboard
 - Perfect patch accuracy without human review
 - Behavior-change patches applied without human approval
@@ -106,11 +106,13 @@ interface ProviderAdapter {
   versionRange: string;                            // ">=12.0.0 <14.0.0"
   conventions: ProviderConventions;                // entityPrefix, naming style, etc.
 
-  fetchChangelog(from: Version, to: Version): Promise<RawChangelog>;
-  parseChangelog(raw: RawChangelog): ChangeEvent[];
+  fetchChangelog(from: Version, to: Version): Promise<RawChangelog>;  // expected for real adapters
+  parseChangelog(raw: RawChangelog): ChangeEvent[];                   // required
   getEntityDefinition(name: string, version: Version): EntityDef | null;
 }
 ```
+
+`fetchChangelog` is technically optional in the SDK (the generic adapter has nothing to fetch), but every real adapter is expected to implement it. CLI usage is `driftpatch run --provider polaris --from 13.0.0 --to 14.0.0` for the fetch path, or `--source <file>` to bypass fetching.
 
 Each adapter lives in its own directory:
 
@@ -259,9 +261,11 @@ driftpatch init [--repo .]
   Scans repo, proposes a draft skill interactively, verifies validation
   commands actually run, writes driftpatch.skill.md.
 
-driftpatch run --source <changelog> --provider <name> [--pr] [--skill <path>]
-  Runs the full pipeline. --pr opens a PR on success. --skill overrides
-  the default skill location for testing.
+driftpatch run --provider <name> (--source <changelog> | --from <ver> --to <ver>) [--apply] [--pr] [--skill <path>] [--yes]
+  Runs the full pipeline. Either --source loads a changelog from disk
+  or --from/--to calls adapter.fetchChangelog. --dry-run is the default;
+  --apply opts in to writing changes. --pr opens a PR on success.
+  --skill overrides the default skill location for testing. --yes for CI.
 
 driftpatch adapter init --provider <name>
   Scaffolds a new adapter directory with fixtures slot and test stub.

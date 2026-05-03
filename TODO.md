@@ -168,10 +168,6 @@ So the Polaris adapter is a **bundle differ**, not a markdown parser.
 - [ ] Branch/commit gated by `patch_policy` per change kind
 - [ ] **Auto-generated migration doc** as PR body: four sections (`What changed / Why / How we updated / What you should verify`) generated from existing artifacts (impact-report, patch-plan, diff). Single LLM call.
 
-### Layer 8 — Self-improving skill
-- [ ] **Hook: when a DriftPatch PR is merged, append sanitized diff as an example to the repo's skill.**
-  Implementation options: (a) GitHub Action on `pull_request: closed && merged`, calls `driftpatch learn --pr <num>`; (b) manual `driftpatch learn --pr <num>` post-merge; (c) scheduled `driftpatch learn --since 7d` scanning labeled PRs. "Sanitized" = strip secrets / internal URLs / customer identifiers from the diff before it lands in the skill.
-
 ## CLI behavior
 
 - [ ] **`--dry-run` is the default mode**: write artifacts to `.driftpatch/`, do not modify files. Apply requires explicit `--apply` flag.

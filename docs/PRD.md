@@ -318,7 +318,6 @@ A first-class deliverable, not an afterthought. Lives at `evals/`.
 - 5–10 fixture cases per supported provider, each with: source changelog, target repo state, expected ChangeEvents, expected files-touched, known-good patch.
 - Grader scores: (a) ChangeEvents match, (b) correct files selected, (c) patch applies, (d) patch passes validation.
 - Run on every change to engine prompts; regressions block merge.
-- Self-improving skill: when a generated PR is merged in production, sanitized diff appended to the repo's skill examples. Skill sharpens over time per repo.
 
 ---
 
@@ -478,6 +477,5 @@ This keeps the engine genuinely generic and makes adding the 6th, 7th, Nth provi
 5. **Eval harness** — grader, fixture cases, regression gating.
 6. **Validation repair loop** — single repair attempt with error context.
 7. **PR integration** — `--pr` flag, branch/commit gating by policy.
-8. **Self-improving skill** — append merged-PR examples to skill.
 
 Each layer is independently demoable. No layer waits on the next.

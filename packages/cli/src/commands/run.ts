@@ -29,6 +29,7 @@ export interface RunOptions {
   patch: boolean;
   validate: boolean;
   repair: boolean;
+  allowDirty: boolean;
   effort?: "low" | "medium" | "high" | "max";
   model?: string;
   minConfidence: "low" | "medium" | "high";
@@ -169,6 +170,7 @@ export async function runRun(opts: RunOptions): Promise<void> {
       events,
       skill,
       allowRepair: opts.repair,
+      allowDirty: opts.allowDirty,
       patchModel,
       effort: opts.effort,
     });
@@ -184,6 +186,7 @@ interface ValidationLoopInput {
   events: ChangeEvent[];
   skill: RepoSkill;
   allowRepair: boolean;
+  allowDirty: boolean;
   patchModel: string;
   effort?: "low" | "medium" | "high" | "max";
 }
@@ -197,6 +200,7 @@ async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
     repoPath: input.repoPath,
     patchText: input.patchText,
     validationCommands: input.skill.validation.commands,
+    requireCleanTree: !input.allowDirty,
   });
 
   printValidationOutcome("first attempt", first);
@@ -247,6 +251,7 @@ async function runValidationLoop(input: ValidationLoopInput): Promise<void> {
     repoPath: input.repoPath,
     patchText: repaired.unifiedDiff,
     validationCommands: input.skill.validation.commands,
+    requireCleanTree: !input.allowDirty,
   });
 
   printValidationOutcome("repair attempt", second);

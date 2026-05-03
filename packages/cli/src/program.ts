@@ -74,6 +74,7 @@ export function buildProgram(): Command {
     )
     .option("--validate", "apply patch + run skill validation commands; revert after", false)
     .option("--repair", "if validation fails, ask LLM for one repair attempt and re-validate", false)
+    .option("--allow-dirty", "skip clean-tree check before validating (use with care)", false)
     .option("--pr", "open a PR after applying", false)
     .action(async (opts) => {
       await runRun({
@@ -89,6 +90,7 @@ export function buildProgram(): Command {
         minConfidence: opts.minConfidence,
         validate: Boolean(opts.validate),
         repair: Boolean(opts.repair),
+        allowDirty: Boolean(opts.allowDirty),
         pr: Boolean(opts.pr),
       });
     });

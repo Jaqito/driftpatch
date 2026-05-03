@@ -209,3 +209,26 @@ Here's what an actual run looked like end-to-end, against the live `react-polari
 > **Total cost: ~$0.06** (initial patch $0.04 + repair $0.02). Whole thing took ~30 seconds wall-clock.
 
 The repair step wasn't theatre — it actually fired and corrected a real type-system mismatch that would have made the PR fail CI. That's the load-bearing reason the LLM is in the loop at all: when reality (the installed types) doesn't match the spec (the new bundle's surface), something has to bridge the gap, and the model has the context to do it correctly.
+
+---
+
+## Future direction: more generic, more providers
+
+V1 proves the architecture against one provider (Polaris) and one repo (`react-polaris-web-components`). The whole point of the engine + adapter + skill split is to make subsequent providers cheap. Future versions go in this direction:
+
+**More adapters.** Each new upstream is a focused FDE day:
+- **Stripe** — diff OpenAPI specs by API date; webhook event renames, endpoint param changes, deprecations.
+- **OpenAI / Anthropic SDKs** — model lifecycle (deprecation dates) → rename `model: "..."` strings + tool schema changes.
+- **Prisma** — diff `schema.prisma`; field renames, removals, and type changes ripple through `prisma.<model>.<op>` call sites.
+- **Auth0 / Clerk** — middleware composition + callback URL changes; tests the locator's call-site + string-literal paths together.
+- Anything with an OpenAPI spec, `.d.ts` package update, or GraphQL schema becomes a near-trivial adapter.
+
+**More languages.** The indexer is TS/TSX-only today. The same architecture works for Python, Go, Ruby, Java — `ts-morph` swaps for `tree-sitter` + per-language extractors; everything downstream of `RepoIndex` is language-agnostic.
+
+**More automation.** The current GitHub Actions workflow takes `from_sha` as a manual input. A baseline store (`.driftpatch/baselines/<provider>/latest.json`) auto-tracks the last-seen upstream version, so a scheduled cron just becomes "diff against latest, open PR if anything changed." From there, a polling-and-auto-trigger loop is a natural extension.
+
+**Richer judgment.** The patcher is currently a single LLM call per file. Adding type-defs of the *new* SDK version into the prompt (already in the PRD) closes the hallucinated-API loophole. Auto-generated migration docs (LLM call over the existing artifacts) replace the current templated PR body. Patch-confidence scoring + blast-radius classification graduate the freeform `risk: low/medium/high` enum into a real gate for `auto_apply`.
+
+**Better evals.** The current snapshot test catches deterministic regressions on one fixture. A real eval harness with multiple providers and graded outcomes (was the wrapper picked correctly, did the patch apply, did it pass validation, was there a known-good patch to compare against) becomes valuable once the second adapter ships and we need to know whether prompt changes improve averages, not just one case.
+
+The thread connecting all of these: the engine doesn't change. Every one of the items above is either a new adapter (FDE work, isolated to its own package) or a generic-engine improvement (benefits every provider simultaneously). That's the test of whether the abstractions hold — and so far, they do.

@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Generic upstream-drift engine. Provider adapters and repo skills make it useful per-engagement.",
+  "license": "SEE LICENSE IN LICENSE",
   "packageManager": "pnpm@9.12.2",
   "engines": {
     "node": ">=20"

@@ -31,3 +31,9 @@ pnpm install
 pnpm typecheck
 pnpm test
 ```
+
+## License
+
+Proprietary — All Rights Reserved. See [LICENSE](./LICENSE).
+
+This source code is made available for review and evaluation purposes only. No license is granted to redistribute, modify, sublicense, or use this code commercially without prior written permission. For permission requests: donkersjack@gmail.com.
